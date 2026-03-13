@@ -1,9 +1,23 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from sqlalchemy import text
 from app.core.config import settings
+from app.db.session import DBSession
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    db = DBSession()
+    try:
+        db.execute(text('SELECT 1'))
+        print('Database Connection Successful')
+    finally:
+        db.close()
+    yield
 
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
+    lifespan=lifespan
 )
 
 @app.get("/")
