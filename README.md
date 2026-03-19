@@ -1,11 +1,11 @@
 # Expense Sharing API
-
 Expense Sharing API is a backend project for managing shared expenses between users. It allows users to create groups, add expenses, split costs, and keep track of balances and settlements.
 
 The project is built with FastAPI, PostgreSQL, and SQLAlchemy.
 
-## Authentication
+---
 
+## Authentication
 This API uses bearer token authentication.
 
 ### Login
@@ -21,5 +21,7 @@ Example form data:
 
 username=test@example.com
 password=secret123
+
+---
 
 Detailed setup instructions and endpoint documentation will be added later.
