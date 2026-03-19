@@ -13,10 +13,6 @@ class RegisterRequest(BaseModel):
             raise ValueError('Password must be at least 8 characters long')
         return value
 
-class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str
-
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str

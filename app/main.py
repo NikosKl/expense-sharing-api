@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from sqlalchemy import text
 from app.core.config import settings
 from app.db.session import DBSession
+from app.api.auth import router as auth_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -19,6 +20,8 @@ app = FastAPI(
     version=settings.app_version,
     lifespan=lifespan
 )
+
+app.include_router(auth_router)
 
 @app.get("/")
 def read_root():
