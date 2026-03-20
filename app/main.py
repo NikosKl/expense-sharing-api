@@ -4,6 +4,7 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.db.session import DBSession
 from app.api.auth import router as auth_router
+from app.api.group import router as group_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -22,6 +23,7 @@ app = FastAPI(
 )
 
 app.include_router(auth_router)
+app.include_router(group_router)
 
 @app.get("/")
 def read_root():
