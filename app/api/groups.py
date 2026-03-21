@@ -7,7 +7,7 @@ from app.models import User
 from app.schemas.group import GroupResponse, GroupCreateRequest
 from app.schemas.group_member import GroupMemberCreateRequest, GroupMemberResponse
 from app.services.group_member_service import add_member_to_group, GroupNotFound, UserNotFound, PermissionDeniedError, \
-    GroupMemberAlreadyExists
+    GroupMemberAlreadyExists, get_group_members
 from app.services.group_service import create_group, get_group_by_id, get_groups_for_user
 
 router = APIRouter(prefix="/groups", tags=["groups"])
@@ -42,3 +42,13 @@ def add_membership(group_id: uuid.UUID, group_request: GroupMemberCreateRequest 
         raise HTTPException(status_code=404, detail="User not found")
     except GroupMemberAlreadyExists:
         raise HTTPException(status_code=409, detail="User is already a member of the group")
+
+@router.get('/{group_id}/members', response_model=list[GroupMemberResponse])
+def get_all_members_from_group(group_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        group_members = get_group_members(db, current_user, group_id)
+        return group_members
+    except GroupNotFound:
+        raise HTTPException(status_code=404, detail="Group not found")
+    except PermissionDeniedError:
+        raise HTTPException(status_code=403, detail="You do not have permission to perform this action")

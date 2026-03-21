@@ -1,4 +1,5 @@
 import uuid
+from typing import cast
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -51,3 +52,16 @@ def get_group_member(db: Session, group_id: uuid.UUID, user_id: uuid.UUID) -> Gr
     stmt = select(GroupMember).where(GroupMember.group_id == group_id, GroupMember.user_id == user_id)
     group_member = db.scalar(stmt)
     return group_member
+
+def get_group_members(db: Session, current_user: User, group_id: uuid.UUID) -> list[GroupMember]:
+    current_member = get_group_member(db, group_id, current_user.id)
+    if current_member is None:
+        raise PermissionDeniedError()
+    group = get_group_by_id(db, current_user, group_id)
+    if group is None:
+        raise GroupNotFound()
+
+    stmt = select(GroupMember).where(GroupMember.group_id == group_id)
+
+    group_members = cast(list[GroupMember], db.scalars(stmt).all())
+    return group_members
