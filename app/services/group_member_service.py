@@ -15,6 +15,8 @@ class UserNotFound(Exception):
     pass
 class GroupMemberAlreadyExists(Exception):
     pass
+class CannotRemoveSelfFromGroupError(Exception):
+    pass
 
 def add_member_to_group(db: Session, current_user: User, group_id: uuid.UUID, user_to_add: uuid.UUID) -> GroupMember:
 
@@ -65,3 +67,22 @@ def get_group_members(db: Session, current_user: User, group_id: uuid.UUID) -> l
 
     group_members = cast(list[GroupMember], db.scalars(stmt).all())
     return group_members
+
+def remove_group_member(db: Session, current_user: User, group_id: uuid.UUID, user_to_remove: uuid.UUID) ->  None:
+    group = get_group_by_id(db, current_user, group_id)
+    if group is None:
+        raise GroupNotFound()
+    current_membership = get_group_member(db, group_id, current_user.id)
+    if current_membership is None:
+        raise PermissionDeniedError()
+    if current_membership.role != 'owner':
+        raise PermissionDeniedError()
+    if current_membership.user_id == user_to_remove:
+        raise CannotRemoveSelfFromGroupError()
+    stmt = select(GroupMember).where(GroupMember.group_id == group_id, GroupMember.user_id == user_to_remove)
+    member = db.scalar(stmt)
+    if member is None:
+        raise UserNotFound()
+
+    db.delete(member)
+    db.commit()

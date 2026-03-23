@@ -1,5 +1,5 @@
 import uuid
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.db.session import get_db
@@ -7,7 +7,7 @@ from app.models import User
 from app.schemas.group import GroupResponse, GroupCreateRequest
 from app.schemas.group_member import GroupMemberCreateRequest, GroupMemberResponse
 from app.services.group_member_service import add_member_to_group, GroupNotFound, UserNotFound, PermissionDeniedError, \
-    GroupMemberAlreadyExists, get_group_members
+    GroupMemberAlreadyExists, get_group_members, remove_group_member, CannotRemoveSelfFromGroupError
 from app.services.group_service import create_group, get_group_by_id, get_groups_for_user
 
 router = APIRouter(prefix="/groups", tags=["groups"])
@@ -52,3 +52,16 @@ def get_all_members_from_group(group_id: uuid.UUID, db: Session = Depends(get_db
         raise HTTPException(status_code=404, detail="Group not found")
     except PermissionDeniedError:
         raise HTTPException(status_code=403, detail="You do not have permission to perform this action")
+
+@router.delete('/{group_id}/members/{user_id}', status_code=status.HTTP_204_NO_CONTENT)
+def delete_member_from_group(group_id: uuid.UUID, user_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        remove_group_member(db, current_user, group_id, user_id)
+    except GroupNotFound:
+        raise HTTPException(status_code=404, detail="Group not found")
+    except UserNotFound:
+        raise HTTPException(status_code=404, detail="User not found")
+    except PermissionDeniedError:
+        raise HTTPException(status_code=403, detail="You do not have permission to perform this action")
+    except CannotRemoveSelfFromGroupError:
+        raise HTTPException(status_code=403, detail="You are not allowed to perform this action")
