@@ -41,3 +41,7 @@ def get_group_by_id(db: Session, current_user: User, group_id: uuid.UUID) -> Gro
     stmt = select(Group).join(GroupMember).where(Group.id == group_id, GroupMember.user_id == current_user.id)
     group = db.scalar(stmt)
     return group
+
+def get_group_by_raw_id(db: Session, group_id: uuid.UUID) -> Group | None:
+    stmt = select(Group).where(Group.id == group_id)
+    return db.scalar(stmt)
