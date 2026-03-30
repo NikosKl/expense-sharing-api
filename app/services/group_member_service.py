@@ -4,19 +4,10 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.models import GroupMember, User
+from app.services.exceptions import GroupNotFound, PermissionDeniedError, UserNotFound, GroupMemberAlreadyExists, \
+    CannotRemoveSelfFromGroupError
 from app.services.group_service import get_group_by_id
 from app.services.user_service import get_user_by_id
-
-class GroupNotFound(Exception):
-    pass
-class PermissionDeniedError(Exception):
-    pass
-class UserNotFound(Exception):
-    pass
-class GroupMemberAlreadyExists(Exception):
-    pass
-class CannotRemoveSelfFromGroupError(Exception):
-    pass
 
 def add_member_to_group(db: Session, current_user: User, group_id: uuid.UUID, user_to_add: uuid.UUID) -> GroupMember:
 
