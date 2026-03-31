@@ -1,11 +1,14 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING, List
 from datetime import datetime
 from decimal import Decimal
 from sqlalchemy import UUID, String, ForeignKey, DateTime, func, Numeric, CheckConstraint
 from sqlalchemy.orm import mapped_column, Mapped, relationship
 import uuid
 from app.db.base import Base
-from app.models import ExpenseSplit
 
+if TYPE_CHECKING:
+    from app.models.expense_splits import ExpenseSplit
 
 class Expense(Base):
     __tablename__ = 'expenses'
@@ -23,4 +26,4 @@ class Expense(Base):
     expense_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    splits: Mapped[list["ExpenseSplit"]] = relationship(back_populates="expense")
+    splits: Mapped[List["ExpenseSplit"]] = relationship(back_populates="expense")

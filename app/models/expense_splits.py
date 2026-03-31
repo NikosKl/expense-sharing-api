@@ -1,10 +1,14 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
 from datetime import datetime
 from decimal import Decimal
 from sqlalchemy import UUID, ForeignKey, Numeric, CheckConstraint, UniqueConstraint, func, DateTime
 from sqlalchemy.orm import mapped_column, Mapped, relationship
 import uuid
 from app.db.base import Base
-from app.models import Expense
+
+if TYPE_CHECKING:
+    from app.models.expense import Expense
 
 class ExpenseSplit(Base):
     __tablename__ = "expense_splits"
@@ -18,4 +22,4 @@ class ExpenseSplit(Base):
     amount_owed: Mapped[Decimal] = mapped_column(Numeric(10,2), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
-    expense: Mapped['Expense'] = relationship(back_populates="splits")
+    expense: Mapped["Expense"] = relationship(back_populates="splits")
