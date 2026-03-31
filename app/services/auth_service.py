@@ -3,13 +3,7 @@ from sqlalchemy.orm import Session
 from app.core.security import get_password_hash, verify_password, create_access_token
 from app.models import User
 from app.services.user_service import get_user_by_email, get_user_by_username
-
-class UserAlreadyExistsError(Exception):
-    pass
-class InvalidCredentialsError(Exception):
-    pass
-class InactiveUserError(Exception):
-    pass
+from app.services.exceptions import UserAlreadyExistsError, InactiveUserError, InvalidCredentialsError
 
 def register_user(db: Session, email: EmailStr, username: str, password: str, full_name: str | None) -> User:
     existing_email = get_user_by_email(db, email)

@@ -7,8 +7,8 @@ from app.db.session import get_db
 from app.models import User
 from app.schemas.auth import RegisterRequest, TokenResponse
 from app.schemas.user import UserResponse
-from app.services.auth_service import register_user, UserAlreadyExistsError, authenticate_user, InvalidCredentialsError, \
-    create_access_token_for_user, InactiveUserError
+from app.services.auth_service import register_user, authenticate_user, create_access_token_for_user
+from app.services.exceptions import UserAlreadyExistsError, InactiveUserError, InvalidCredentialsError
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 

@@ -1,3 +1,9 @@
+class UserAlreadyExistsError(Exception):
+    pass
+class InvalidCredentialsError(Exception):
+    pass
+class InactiveUserError(Exception):
+    pass
 class InvalidPayerError(Exception):
     pass
 class InvalidParticipantsError(Exception):
