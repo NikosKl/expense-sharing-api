@@ -25,11 +25,11 @@ def validate_expense_memberships(db: Session, current_user: User, group_id: uuid
             raise InvalidParticipantsError()
 
 def calculate_equal_splits(total_amount: Decimal, participant_ids: list[uuid.UUID]) -> list[tuple[uuid.UUID, Decimal]]:
-    participant_count = len(participant_ids)
-    cent = Decimal('0.01')
-
     if not participant_ids:
         raise InvalidParticipantsError()
+
+    participant_count = len(participant_ids)
+    cent = Decimal('0.01')
 
     base_split = (total_amount/participant_count).quantize(cent, rounding=ROUND_DOWN)
     splits = [(participant_id, base_split) for participant_id in participant_ids]
@@ -46,7 +46,7 @@ def calculate_equal_splits(total_amount: Decimal, participant_ids: list[uuid.UUI
         adjusted_splits.append((participant_id, amount))
 
     if sum(amount for _, amount in adjusted_splits) != total_amount:
-        raise InvalidParticipantsError()
+        raise ValueError('Equal splits must sum up to total amount')
 
     return adjusted_splits
 
@@ -75,7 +75,7 @@ def create_expense(db: Session, current_user: User, group_id: uuid.UUID, expense
             ExpenseSplit(
                 expense_id=group_expense.id,
                 user_id=participant_id,
-                amount=amount
+                amount_owed=amount
             )
             for participant_id, amount in amount_split
         ]
