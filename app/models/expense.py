@@ -1,9 +1,11 @@
 from datetime import datetime
 from decimal import Decimal
 from sqlalchemy import UUID, String, ForeignKey, DateTime, func, Numeric, CheckConstraint
-from sqlalchemy.orm import mapped_column, Mapped
+from sqlalchemy.orm import mapped_column, Mapped, relationship
 import uuid
 from app.db.base import Base
+from app.models import ExpenseSplit
+
 
 class Expense(Base):
     __tablename__ = 'expenses'
@@ -20,3 +22,5 @@ class Expense(Base):
     split_type: Mapped[str] = mapped_column(String(20), nullable=False, default='equal')
     expense_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    splits: Mapped[list["ExpenseSplit"]] = relationship(back_populates="expense")
