@@ -26,4 +26,4 @@ class Expense(Base):
     expense_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    splits: Mapped[List["ExpenseSplit"]] = relationship(back_populates="expense")
+    splits: Mapped[List[ExpenseSplit]] = relationship(back_populates="expense")

@@ -22,4 +22,4 @@ class ExpenseSplit(Base):
     amount_owed: Mapped[Decimal] = mapped_column(Numeric(10,2), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
-    expense: Mapped["Expense"] = relationship(back_populates="splits")
+    expense: Mapped[Expense] = relationship(back_populates="splits")
