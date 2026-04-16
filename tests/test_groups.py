@@ -1,3 +1,4 @@
+import uuid
 from tests.conftest import get_auth_headers
 
 def test_create_group(client):
@@ -43,3 +44,49 @@ def test_get_all_groups(client):
     data = response.json()
     assert isinstance(data, list)
     assert len(data) == 2
+
+def test_get_group(client):
+    headers = get_auth_headers(client)
+    payload = {
+        'name': 'test_group'
+    }
+
+    response = client.post('/groups', json=payload, headers=headers)
+    assert response.status_code == 200
+
+    data = response.json()
+    group_id = data['id']
+
+    response = client.get(f'/groups/{group_id}', headers=headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data['id'] == group_id
+    assert data['name'] == 'test_group'
+
+def test_group_not_found(client):
+    headers = get_auth_headers(client)
+
+    missing_group = uuid.uuid4()
+    response = client.get(f'/groups/{missing_group}', headers=headers)
+    assert response.status_code == 404
+
+def test_inaccessible_group(client):
+    headers_a = get_auth_headers(
+        client,
+        email='user_a@example.com',
+        username='user_a',
+        password='long_password'
+    )
+    headers_b = get_auth_headers(
+        client,
+        email='user_b@example.com',
+        username='user_b',
+        password='long_password'
+    )
+
+    response = client.post('/groups', json={'name': 'test_group'}, headers=headers_a)
+    assert response.status_code == 200
+    data = response.json()
+    group_id = data['id']
+    response = client.get(f'/groups/{group_id}', headers=headers_b)
+    assert response.status_code == 404
