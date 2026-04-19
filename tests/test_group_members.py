@@ -67,9 +67,14 @@ def test_cannot_add_nonexistent_user(client):
     response = client.post(f'/groups/{group_id}/members', json={'user_id': str(member_id)}, headers=owner['headers'])
     assert response.status_code == 404
 
-def cannot_add_duplicate_member(client):
+def test_cannot_add_duplicate_member(client):
     owner = create_authenticated_user(client)
-    member = create_authenticated_user(client)
+    member = create_authenticated_user(
+        client,
+        email='member@example.com',
+        username='member_a',
+        password='long_password',
+    )
 
     response = client.post('/groups', json={'name': 'test_group'}, headers=owner['headers'])
     assert response.status_code == 200
@@ -78,5 +83,5 @@ def cannot_add_duplicate_member(client):
 
     response = client.post(f'/groups/{group_id}/members', json={'user_id': member['user']['id']}, headers=owner['headers'])
     assert response.status_code == 200
-    response = client.post(f'/groups/{group_id}/members', json={'user_id': member['user']['id']},headers=owner['headers'])
+    response = client.post(f'/groups/{group_id}/members', json={'user_id': member['user']['id']}, headers=owner['headers'])
     assert response.status_code == 409
