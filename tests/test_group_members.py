@@ -85,3 +85,99 @@ def test_cannot_add_duplicate_member(client):
     assert response.status_code == 200
     response = client.post(f'/groups/{group_id}/members', json={'user_id': member['user']['id']}, headers=owner['headers'])
     assert response.status_code == 409
+    data = response.json()
+    assert data['detail'] == 'User is already a member of the group'
+
+def test_list_group_members_success(client):
+    owner = create_authenticated_user(client)
+    member_a = create_authenticated_user(
+        client,
+        email='member_a@example.com',
+        username='member_a',
+        password='long_password',
+    )
+    member_b = create_authenticated_user(
+        client,
+        email='member_b@example.com',
+        username='member_b',
+        password='long_password',
+    )
+
+    response = client.post('/groups', json={'name': 'test_group'}, headers=owner['headers'])
+    assert response.status_code == 200
+    group_data = response.json()
+    group_id = group_data['id']
+
+    response = client.post(f'/groups/{group_id}/members', json={'user_id': member_a['user']['id']}, headers=owner['headers'])
+    assert response.status_code == 200
+    response = client.post(f'/groups/{group_id}/members', json={'user_id': member_b['user']['id']}, headers=owner['headers'])
+    assert response.status_code == 200
+
+    response = client.get(f'/groups/{group_id}/members', headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    returned_ids = [member['user_id'] for member in data]
+    assert member_a['user']['id'] in returned_ids
+    assert member_b['user']['id'] in returned_ids
+    assert owner['user']['id'] in returned_ids
+
+def test_owner_can_remove_member(client):
+    owner = create_authenticated_user(client)
+    member = create_authenticated_user(
+        client,
+        email='member@example.com',
+        username='member_a',
+        password='long_password')
+    user_id = member['user']['id']
+
+    response = client.post('/groups', json={'name': 'test_group'}, headers=owner['headers'])
+    assert response.status_code == 200
+    group_data = response.json()
+    group_id = group_data['id']
+
+    response = client.post(f'/groups/{group_id}/members', json={'user_id': member['user']['id']}, headers=owner['headers'])
+    assert response.status_code == 200
+
+    response = client.delete(f'/groups/{group_id}/members/{user_id}', headers=owner['headers'])
+    assert response.status_code == 204
+
+def test_owner_cannot_remove_self(client):
+    owner = create_authenticated_user(client)
+    user_id = owner['user']['id']
+
+    response = client.post('/groups', json={'name': 'test_group'}, headers=owner['headers'])
+    assert response.status_code == 200
+    group_data = response.json()
+    group_id = group_data['id']
+
+    response = client.delete(f'/groups/{group_id}/members/{user_id}', headers=owner['headers'])
+    assert response.status_code == 403
+
+def test_non_owner_cannot_remove_member(client):
+    owner = create_authenticated_user(client)
+    member_a = create_authenticated_user(
+        client,
+        email='member_a@example.com',
+        username='member_a',
+        password='long_password')
+    user_id_a = member_a['user']['id']
+
+    member_b = create_authenticated_user(
+        client,
+        email='member_b@example.com',
+        username='member_b',
+        password='long_password')
+    user_id_b = member_b['user']['id']
+
+    response = client.post('/groups', json={'name': 'test_group'}, headers=owner['headers'])
+    assert response.status_code == 200
+    group_data = response.json()
+    group_id = group_data['id']
+
+    response = client.post(f'/groups/{group_id}/members', json={'user_id': user_id_a}, headers=owner['headers'])
+    assert response.status_code == 200
+    response = client.post(f'/groups/{group_id}/members', json={'user_id': user_id_b}, headers=owner['headers'])
+    assert response.status_code == 200
+
+    response = client.delete(f'/groups/{group_id}/members/{user_id_b}', headers=member_a['headers'])
+    assert response.status_code == 403
