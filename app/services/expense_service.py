@@ -1,3 +1,6 @@
+from typing import cast
+
+from sqlalchemy import select
 import uuid
 from decimal import Decimal, ROUND_DOWN
 from sqlalchemy.exc import IntegrityError
@@ -86,6 +89,20 @@ def create_expense(db: Session, current_user: User, group_id: uuid.UUID, expense
     except IntegrityError:
         db.rollback()
         raise
+
+def get_group_expenses(db: Session, current_user: User, group_id: uuid.UUID) -> list[Expense]:
+    group = get_group_by_raw_id(db, group_id)
+    if group is None:
+        raise GroupNotFound()
+    current_member = get_group_member(db, group_id, current_user.id)
+    if current_member is None:
+        raise PermissionDeniedError()
+
+    stmt = select(Expense).where(Expense.group_id == group_id).order_by(Expense.created_at.desc())
+
+    expenses = cast(list[Expense], db.scalars(stmt).all())
+    return expenses
+
 
 
 
