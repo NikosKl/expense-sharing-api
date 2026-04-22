@@ -251,3 +251,167 @@ def test_zero_amount_in_expense(client):
 
     response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
     assert response.status_code == 422
+
+def test_list_expenses_success(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload_a = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense_a',
+        'total_amount': 100,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]}
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload_a, headers=owner['headers'])
+    assert response.status_code == 200
+
+    expense_payload_b = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense_b',
+        'total_amount': 50,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]}
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload_b, headers=owner['headers'])
+    assert response.status_code == 200
+
+    response = client.get(f'/groups/{group_id}/expenses', headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+
+    assert len(data) == 2
+
+    returned_ids = {expense['title'] for expense in data}
+
+    assert returned_ids == {
+        'test_expense_a',
+        'test_expense_b'
+    }
+
+def test_list_returns_only_that_groups_expenses(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member_a = context['member']
+    group_a_id = context['group']['id']
+
+    member_b = create_authenticated_user(
+        client,
+        email='member_b@example.com',
+        username='member_b',
+        password='long_password'
+    )
+
+    response = client.post('/groups', json={'name': 'group_b'}, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    group_b_id = data['id']
+
+    response = client.post(f'/groups/{group_b_id}/members', json={'user_id': member_b['user']['id']}, headers=owner['headers'])
+    assert response.status_code == 200
+
+    expense_payload_a = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense_a',
+        'total_amount': 100,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': member_a['user']['id']},
+            {'user_id': owner['user']['id']}
+        ]
+    }
+    response = client.post(f'/groups/{group_a_id}/expenses', json=expense_payload_a, headers=owner['headers'])
+    assert response.status_code == 200
+
+    expense_payload_b = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense_b',
+        'total_amount': 50,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': member_b['user']['id']},
+            {'user_id': owner['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_b_id}/expenses', json=expense_payload_b, headers=owner['headers'])
+    assert response.status_code == 200
+
+    response = client.get(f'/groups/{group_a_id}/expenses', headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]['title'] == 'test_expense_a'
+
+def test_list_non_member_failure(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    user = create_authenticated_user(
+        client,
+        email='user@example.com',
+        username='user',
+        password='long_password'
+    )
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 100,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    response = client.get(f'/groups/{group_id}/expenses', headers=user['headers'])
+    assert response.status_code == 403
+
+def test_update_expense(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    new_group_id = uuid.uuid4()
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 100,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    response = client.get(f'/groups/{new_group_id}/expenses', headers=owner['headers'])
+    assert response.status_code == 404
