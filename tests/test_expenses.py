@@ -389,7 +389,7 @@ def test_list_non_member_failure(client):
     response = client.get(f'/groups/{group_id}/expenses', headers=user['headers'])
     assert response.status_code == 403
 
-def test_update_expense(client):
+def test_list_expenses_nonexistent_group(client):
     context = create_authenticated_group_members(client)
 
     owner = context['owner']
