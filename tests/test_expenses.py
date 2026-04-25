@@ -415,3 +415,32 @@ def test_list_expenses_nonexistent_group(client):
 
     response = client.get(f'/groups/{new_group_id}/expenses', headers=owner['headers'])
     assert response.status_code == 404
+
+def test_list_expenses_response_includes_nested_splits(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 100,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    response = client.get(f'/groups/{group_id}/expenses', headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    returned_id = [splits['user_id'] for splits in data[0]['splits']]
+    assert member['user']['id'] in returned_id
+    assert owner['user']['id'] in returned_id
