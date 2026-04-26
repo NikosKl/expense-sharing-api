@@ -18,3 +18,5 @@ class GroupMemberAlreadyExists(Exception):
     pass
 class CannotRemoveSelfFromGroupError(Exception):
     pass
+class InvalidExpenseSplitError(Exception):
+    pass

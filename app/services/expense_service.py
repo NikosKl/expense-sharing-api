@@ -4,10 +4,11 @@ from sqlalchemy import select
 import uuid
 from decimal import Decimal, ROUND_DOWN
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from app.models import User, Expense, ExpenseSplit
 from app.schemas.expense import ExpenseCreateRequest
-from app.services.exceptions import InvalidPayerError, InvalidParticipantsError, GroupNotFound, PermissionDeniedError
+from app.services.exceptions import InvalidPayerError, InvalidParticipantsError, GroupNotFound, PermissionDeniedError, \
+    InvalidExpenseSplitError
 from app.services.group_member_service import get_group_member
 from app.services.group_service import get_group_by_raw_id
 
@@ -49,7 +50,7 @@ def calculate_equal_splits(total_amount: Decimal, participant_ids: list[uuid.UUI
         adjusted_splits.append((participant_id, amount))
 
     if sum(amount for _, amount in adjusted_splits) != total_amount:
-        raise ValueError('Equal splits must sum up to total amount')
+        raise InvalidExpenseSplitError()
 
     return adjusted_splits
 
