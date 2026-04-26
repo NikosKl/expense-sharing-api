@@ -99,12 +99,7 @@ def get_group_expenses(db: Session, current_user: User, group_id: uuid.UUID) -> 
     if current_member is None:
         raise PermissionDeniedError()
 
-    stmt = select(Expense).where(Expense.group_id == group_id).order_by(Expense.created_at.desc())
+    stmt = select(Expense).where(Expense.group_id == group_id).options(selectinload(Expense.splits)).order_by(Expense.created_at.desc())
 
     expenses = cast(list[Expense], db.scalars(stmt).all())
     return expenses
-
-
-
-
-
