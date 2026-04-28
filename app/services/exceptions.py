@@ -20,3 +20,5 @@ class CannotRemoveSelfFromGroupError(Exception):
     pass
 class InvalidExpenseSplitError(Exception):
     pass
+class InvalidReceiverError(Exception):
+    pass
