@@ -11,7 +11,7 @@ from app.services.exceptions import GroupNotFound, PermissionDeniedError, Invali
     InvalidParticipantsError, InvalidExpenseSplitError
 from app.services.expense_service import create_expense, get_group_expenses
 
-router = APIRouter(prefix="/groups", tags=["groups"])
+router = APIRouter(prefix="/groups", tags=["expenses"])
 
 @router.post("/{group_id}/expenses", response_model=ExpenseResponse)
 def create_new_expense(group_id: uuid.UUID, expense_request: ExpenseCreateRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

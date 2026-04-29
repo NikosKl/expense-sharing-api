@@ -8,6 +8,7 @@ from app.api.groups import router as group_router
 from app.api.expenses import router as expenses_router
 from app.api.balances import router as balances_router
 from app.api.settlements import router as settlements_router
+from app.api.group_members import router as group_members_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -27,6 +28,7 @@ app = FastAPI(
 
 app.include_router(auth_router)
 app.include_router(group_router)
+app.include_router(group_members_router)
 app.include_router(expenses_router)
 app.include_router(balances_router)
 app.include_router(settlements_router)

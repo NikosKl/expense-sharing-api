@@ -10,7 +10,7 @@ from app.schemas.balance import GroupBalancesResponse
 from app.services.balance_service import get_group_balances
 from app.services.exceptions import GroupNotFound, PermissionDeniedError
 
-router = APIRouter(prefix='/groups', tags=['Groups'])
+router = APIRouter(prefix='/groups', tags=['balances'])
 
 @router.get('/{group_id}/balances', response_model=GroupBalancesResponse)
 def get_balances(group_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

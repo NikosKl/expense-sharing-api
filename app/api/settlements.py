@@ -8,7 +8,7 @@ from app.schemas.settlement import SettlementResponse, SettlementCreateRequest
 from app.services.exceptions import GroupNotFound, PermissionDeniedError, InvalidPayerError, InvalidReceiverError
 from app.services.settlement_service import create_settlement
 
-router = APIRouter(prefix='/groups', tags=['groups'])
+router = APIRouter(prefix='/groups', tags=['settlements'])
 
 @router.post('/{group_id}/settlements', response_model=SettlementResponse)
 def create_group_settlement(group_id: uuid.UUID, settlement_request: SettlementCreateRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
