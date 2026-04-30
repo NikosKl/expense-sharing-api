@@ -1,5 +1,7 @@
 import uuid
+from typing import cast
 
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.models import User, Settlement
@@ -42,3 +44,18 @@ def create_settlement(db: Session, current_user: User, group_id: uuid.UUID, sett
     except IntegrityError:
         db.rollback()
         raise
+
+def get_group_settlements(db: Session, current_user: User, group_id: uuid.UUID) -> list[Settlement]:
+    validate_settlement_access(db, current_user, group_id)
+
+    stmt = select(Settlement).where(Settlement.group_id == group_id).order_by(Settlement.created_at.desc())
+    settlements = cast(list[Settlement], db.scalars(stmt).all())
+    return settlements
+
+def validate_settlement_access(db: Session, current_user: User, group_id: uuid.UUID) -> None:
+    group = get_group_by_raw_id(db, group_id)
+    if group is None:
+        raise GroupNotFound()
+    current_member = get_group_member(db, group_id, current_user.id)
+    if current_member is None:
+        raise PermissionDeniedError()
