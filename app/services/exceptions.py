@@ -22,3 +22,5 @@ class InvalidExpenseSplitError(Exception):
     pass
 class InvalidReceiverError(Exception):
     pass
+class InvalidSettlementAmountError(Exception):
+    pass
