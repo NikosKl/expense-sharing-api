@@ -20,6 +20,8 @@ def validate_settlement_memberships(db: Session, current_user: User, group_id: u
     current_member = get_group_member(db, group_id, current_user.id)
     if current_member is None:
         raise PermissionDeniedError()
+    if current_user.id != payer_id:
+        raise PermissionDeniedError()
     payer = get_group_member(db, group_id, payer_id)
     if payer is None:
         raise InvalidPayerError()
