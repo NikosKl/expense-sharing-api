@@ -444,3 +444,106 @@ def test_list_expenses_response_includes_nested_splits(client):
     returned_id = [splits['user_id'] for splits in data[0]['splits']]
     assert member['user']['id'] in returned_id
     assert owner['user']['id'] in returned_id
+
+def test_get__expense_by_id_success(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 100,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    expense_id = data['id']
+
+    response = client.get(f'/expenses/{expense_id}', headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    assert data['id'] == expense_id
+    assert data['title'] == expense_payload['title']
+    assert Decimal(data['total_amount']) == Decimal(expense_payload['total_amount'])
+    assert data['split_type'] == expense_payload['split_type']
+    assert 'splits' in data
+    assert len(data['splits']) == 2
+    split_user_ids = {split['user_id'] for split in data['splits']}
+    assert split_user_ids == {
+        owner['user']['id'],
+        member['user']['id']
+    }
+
+
+def test_get_expense_by_id_not_found(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 100,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    new_expense_id = uuid.uuid4()
+
+    response = client.get(f'/expenses/{new_expense_id}', headers=owner['headers'])
+    assert response.status_code == 404
+
+def test_non_group_member_cannot_get_expense_by_id(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    new_user = create_authenticated_user(
+        client,
+        email='new_user@example.com',
+        username='new_user',
+        password='long_password'
+    )
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 100,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    expense_id = data['id']
+
+    response = client.get(f'/expenses/{expense_id}', headers=new_user['headers'])
+    assert response.status_code == 403
+
+
