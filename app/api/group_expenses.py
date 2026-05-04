@@ -1,6 +1,5 @@
 import uuid
 from typing import List
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
@@ -8,8 +7,8 @@ from app.db.session import get_db
 from app.models import User
 from app.schemas.expense import ExpenseResponse, ExpenseCreateRequest
 from app.services.exceptions import GroupNotFound, PermissionDeniedError, InvalidPayerError, \
-    InvalidParticipantsError, InvalidExpenseSplitError, ExpenseNotFound
-from app.services.expense_service import create_expense, get_group_expenses, get_expense_by_id
+    InvalidParticipantsError, InvalidExpenseSplitError
+from app.services.expense_service import create_expense, get_group_expenses
 
 router = APIRouter(prefix="/groups", tags=["expenses"])
 
