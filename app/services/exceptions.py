@@ -24,3 +24,5 @@ class InvalidReceiverError(Exception):
     pass
 class InvalidSettlementAmountError(Exception):
     pass
+class ExpenseNotFound(Exception):
+    pass

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.models import User, Expense, ExpenseSplit
 from app.schemas.expense import ExpenseCreateRequest
 from app.services.exceptions import InvalidPayerError, InvalidParticipantsError, GroupNotFound, PermissionDeniedError, \
-    InvalidExpenseSplitError
+    InvalidExpenseSplitError, ExpenseNotFound
 from app.services.group_member_service import get_group_member
 from app.services.group_service import get_group_by_raw_id
 
@@ -103,3 +103,14 @@ def get_group_expenses(db: Session, current_user: User, group_id: uuid.UUID) -> 
 
     expenses = cast(list[Expense], db.scalars(stmt).all())
     return expenses
+
+def get_expense_by_id(db: Session, current_user: User, expense_id: uuid.UUID) -> Expense:
+    stmt = select(Expense).where(Expense.id==expense_id).options(selectinload(Expense.splits))
+    expense = db.scalar(stmt)
+
+    if expense is None:
+        raise ExpenseNotFound()
+    current_member = get_group_member(db, expense.group_id, current_user.id)
+    if current_member is None:
+        raise PermissionDeniedError()
+    return expense
