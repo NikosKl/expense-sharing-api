@@ -33,7 +33,7 @@ def test_create_settlement_success(client):
         'settled_at': datetime.now(timezone.utc).isoformat(),
     }
 
-    response = client.post(f'/groups/{group_id}/settlements', json=settlement_payload, headers=owner['headers'])
+    response = client.post(f'/groups/{group_id}/settlements', json=settlement_payload, headers=member['headers'])
     assert response.status_code == 200
 
     data = response.json()
@@ -47,28 +47,22 @@ def test_create_settlement_success(client):
     assert 'settled_at' in data
     assert 'created_at' in data
 
-def test_payer_not_group_member(client):
+def test_non_payer_cannot_create_settlement(client):
     context = create_authenticated_group_members(client)
 
     owner = context['owner']
+    member = context['member']
     group_id = context['group']['id']
 
-    new_user = create_authenticated_user(
-        client,
-        email='new_user@example.com',
-        username='new_user',
-        password='long_password'
-    )
-
     settlement_payload = {
-        'payer_id': new_user['user']['id'],
+        'payer_id': member['user']['id'],
         'receiver_id': owner['user']['id'],
         'amount': 13,
         'settled_at': datetime.now(timezone.utc).isoformat(),
     }
 
     response = client.post(f'/groups/{group_id}/settlements', json=settlement_payload, headers=owner['headers'])
-    assert response.status_code == 400
+    assert response.status_code == 403
 
 def test_receiver_not_group_member(client):
     context = create_authenticated_group_members(client)
@@ -254,7 +248,7 @@ def test_receiver_with_non_positive_balance_cannot_create_settlement(client):
         'settled_at': datetime.now(timezone.utc).isoformat()
     }
 
-    response = client.post(f'/groups/{group_id}/settlements', json=settlement_payload, headers=new_user['headers'])
+    response = client.post(f'/groups/{group_id}/settlements', json=settlement_payload, headers=member['headers'])
     assert response.status_code == 400
 
 def test_settlement_cannot_be_greater_than_balance(client):
@@ -289,7 +283,7 @@ def test_settlement_cannot_be_greater_than_balance(client):
         'settled_at': datetime.now(timezone.utc).isoformat()
     }
 
-    response = client.post(f'/groups/{group_id}/settlements', json=settlement_payload, headers=owner['headers'])
+    response = client.post(f'/groups/{group_id}/settlements', json=settlement_payload, headers=member['headers'])
     assert response.status_code == 400
     data = response.json()
     assert data['detail'] == 'Settlement amount exceeds the allowed outstanding balance'
@@ -324,7 +318,7 @@ def test_valid_settlement_reduce_balance(client):
         'settled_at': datetime.now(timezone.utc).isoformat()
     }
 
-    response = client.post(f'/groups/{group_id}/settlements', json=settlement_payload, headers=owner['headers'])
+    response = client.post(f'/groups/{group_id}/settlements', json=settlement_payload, headers=member['headers'])
     assert response.status_code == 200
 
     response = client.get(f'/groups/{group_id}/balances', headers=owner['headers'])
