@@ -8,8 +8,8 @@ from app.db.session import get_db
 from app.models import User
 from app.schemas.expense import ExpenseResponse, ExpenseCreateRequest
 from app.services.exceptions import GroupNotFound, PermissionDeniedError, InvalidPayerError, \
-    InvalidParticipantsError, InvalidExpenseSplitError
-from app.services.expense_service import create_expense, get_group_expenses
+    InvalidParticipantsError, InvalidExpenseSplitError, ExpenseNotFound
+from app.services.expense_service import create_expense, get_group_expenses, get_expense_by_id
 
 router = APIRouter(prefix="/groups", tags=["expenses"])
 
