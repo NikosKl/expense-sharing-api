@@ -111,14 +111,11 @@ pip install -r requirements.txt
 ```
 ### Environment Variables
 Create a `.env` file in the project root.
-Example:
-```env
-DATABASE_URL=postgresql+psycopg://username:password@localhost:5432/expense_sharing_db
-JWT_SECRET_KEY=replace_with_a_long_secret
-TEST_DATABASE_URL=postgresql+psycopg://username:password@localhost:5432/test_expense_sharing_api
-ENVIRONMENT=development
+
+```bash
+cp .env.example .env
 ```
-Update these values to match your configuration. Both ``DATABASE_URL`` and ``TEST_DATABASE_URL`` should point to existing PostgreSQL databases.
+Copy and update the values to match your configuration. Both ``DATABASE_URL`` and ``TEST_DATABASE_URL`` should point to existing PostgreSQL databases.
 
 ### Database migrations
 To apply the existing migrations and create the database schema:
