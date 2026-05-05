@@ -10,7 +10,7 @@ from app.services.exceptions import GroupNotFound, PermissionDeniedError, UserNo
     CannotRemoveSelfFromGroupError
 from app.services.group_member_service import add_member_to_group, get_group_members, remove_group_member
 
-router = APIRouter(prefix='/groups', tags=['membership'])
+router = APIRouter(prefix='/groups', tags=['memberships'])
 
 @router.post('/{group_id}/members', response_model=GroupMemberResponse)
 def add_membership(group_id: uuid.UUID, group_request: GroupMemberCreateRequest , db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

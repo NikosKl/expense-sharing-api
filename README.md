@@ -169,7 +169,7 @@ Authorization: Bearer <access_token>
 - ``GET /groups``
 - ``GET /groups/{group_id}``
 
-### Group Memberships
+### Memberships
 - ``POST /groups/{group_id}/members``
 - ``GET /groups/{group_id}/members``
 - ``DELETE /groups/{group_id}/members/{user_id}``
@@ -189,9 +189,11 @@ Authorization: Bearer <access_token>
 ## Running Tests
 
 Run the full test suite:
+
 ```bash
 pytest
 ```
+
 ## Settlement Notes
 
 - only the payer can create a settlement
