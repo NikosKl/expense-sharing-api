@@ -133,15 +133,15 @@ http://127.0.0.1:8000/docs
 ```
 
 ## Authentication
-This API uses bearer token authentication.
+This API uses OAuth2 password flow with bearer token authentication.
 
-### Login Note
+### Login
 `POST /auth/login`
 
-The login endpoint uses FastAPI's OAuth2 password form.
+The login endpoint expects OAuth2 form data, not JSON.
 
 Important:
-- the OAuth2 form field named `username` must contain the user's **email**
+- the form field named `username` must contain the user's **email**
 - the `password` field contains the user's password
 
 Example form data:
@@ -149,10 +149,9 @@ Example form data:
 username=test@example.com
 password=secret123
 ```
-After login, include the token in the `Authorization` header:
-```
-Authorization: Bearer <access_token>
-```
+
+On success, the API returns an access token. Use that token in subsequent authenticated requests with:
+``Authorization: Bearer <access_token>``
 
 ## Endpoints
 
