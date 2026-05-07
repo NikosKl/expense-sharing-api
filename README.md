@@ -3,6 +3,20 @@ Expense Sharing API is a backend project for managing shared group expenses.
 
 Users can register, create groups, add members, record expenses, track balances and create settlements between group members.
 
+## Live API
+
+- https://expense-sharing-api-mi1p.onrender.com
+
+Interactive documentation: 
+
+- https://expense-sharing-api-mi1p.onrender.com/docs
+
+Alternative documentation:
+
+- https://expense-sharing-api-mi1p.onrender.com/redoc
+
+- https://expense-sharing-api-mi1p.onrender.com/health
+
 ## Features
 
 - JWT authentication
@@ -151,7 +165,9 @@ password=secret123
 ```
 
 On success, the API returns an access token. Use that token in subsequent authenticated requests with:
-``Authorization: Bearer <access_token>``
+```http
+Authorization: Bearer <access_token>
+```
 
 ## Endpoints
 
