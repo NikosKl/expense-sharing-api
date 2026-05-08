@@ -1,12 +1,11 @@
 from typing import cast
-
 from sqlalchemy import select
 import uuid
 from decimal import Decimal, ROUND_DOWN
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from app.models import User, Expense, ExpenseSplit
-from app.schemas.expense import ExpenseCreateRequest
+from app.schemas.expense import ExpenseCreateRequest, ExactExpenseCreateRequest, EqualExpenseCreateRequest
 from app.services.exceptions import InvalidPayerError, InvalidParticipantsError, GroupNotFound, PermissionDeniedError, \
     InvalidExpenseSplitError, ExpenseNotFound
 from app.services.group_member_service import get_group_member
@@ -54,12 +53,26 @@ def calculate_equal_splits(total_amount: Decimal, participant_ids: list[uuid.UUI
 
     return adjusted_splits
 
+def calculate_exact_splits(total_amount: Decimal, participant_splits: list[tuple[uuid.UUID, Decimal]]) -> list[tuple[uuid.UUID, Decimal]]:
+    if not participant_splits:
+        raise InvalidParticipantsError()
+
+    if sum(amount for _, amount in participant_splits) != total_amount:
+        raise InvalidExpenseSplitError()
+    return participant_splits
+
 def create_expense(db: Session, current_user: User, group_id: uuid.UUID, expense_data: ExpenseCreateRequest) -> Expense:
     participant_ids = [participant.user_id for participant in expense_data.participants]
 
     validate_expense_memberships(db, current_user, group_id, expense_data.payer_id, participant_ids)
 
-    amount_split = calculate_equal_splits(expense_data.total_amount, participant_ids)
+    if isinstance(expense_data, EqualExpenseCreateRequest):
+        amount_split = calculate_equal_splits(expense_data.total_amount, participant_ids)
+
+    elif isinstance(expense_data, ExactExpenseCreateRequest):
+
+        participant_splits = [(participant.user_id, participant.amount) for participant in expense_data.participants]
+        amount_split = calculate_exact_splits(expense_data.total_amount, participant_splits)
 
     group_expense = Expense(
         group_id=group_id,
