@@ -1,28 +1,8 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
-from pydantic import BaseModel, Field, field_validator
-
-
-class ExpenseParticipantSplit(BaseModel):
-    user_id: uuid.UUID
-
-class ExpenseCreateRequest(BaseModel):
-    payer_id: uuid.UUID
-    title: str
-    description: str | None = None
-    total_amount: Decimal = Field(gt=0)
-    split_type: Literal['equal'] = 'equal'
-    expense_date: datetime
-    participants: list[ExpenseParticipantSplit]
-
-    @field_validator('participants')
-    @classmethod
-    def validate_participants(cls, value: list[ExpenseParticipantSplit]) -> list[ExpenseParticipantSplit]:
-        if not value:
-            raise ValueError('Participants must not be empty')
-        return value
+from typing import Literal, Annotated, Union
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 class ExpenseSplitResponse(BaseModel):
     id: uuid.UUID
@@ -51,3 +31,51 @@ class ExpenseResponse(BaseModel):
     model_config = {
         'from_attributes': True
     }
+
+class EqualExpenseParticipant(BaseModel):
+    user_id: uuid.UUID
+
+class ExactExpenseParticipant(BaseModel):
+    user_id: uuid.UUID
+    amount: Decimal = Field(gt=0)
+
+class ExpenseCreateBase(BaseModel):
+    payer_id: uuid.UUID
+    title: str
+    description: str | None = None
+    total_amount: Decimal = Field(gt=0)
+    expense_date: datetime
+
+class EqualExpenseCreateRequest(ExpenseCreateBase):
+    split_type: Literal['equal'] = 'equal'
+    participants: list[EqualExpenseParticipant]
+
+    @field_validator('participants')
+    @classmethod
+
+    def validate_participants(cls, value: list[EqualExpenseParticipant]) -> list[EqualExpenseParticipant]:
+        if not value:
+            raise ValueError('Participants must not be empty')
+        return value
+
+class ExactExpenseCreateRequest(ExpenseCreateBase):
+    split_type: Literal['exact'] = 'exact'
+    participants: list[ExactExpenseParticipant]
+
+    @field_validator('participants')
+    @classmethod
+    def validate_participants(cls, value: list[ExactExpenseParticipant]) -> list[ExactExpenseParticipant]:
+        if not value:
+            raise ValueError('Participants must not be empty')
+        return value
+
+    @model_validator(mode='after')
+    def participants_amount_equal_total_amount(self):
+        participants_amount = sum(participant.amount for participant in self.participants)
+
+        if participants_amount != self.total_amount:
+            raise ValueError('Participants amount must equal total_amount')
+        return self
+
+ExpenseCreateRequest = Annotated[Union[EqualExpenseCreateRequest, ExactExpenseCreateRequest],
+Field(discriminator='split_type')]
