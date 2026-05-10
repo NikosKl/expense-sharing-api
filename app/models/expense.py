@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 class Expense(Base):
     __tablename__ = 'expenses'
     __table_args__ = (CheckConstraint(
-        "split_type in ('equal')", name='chk_expenses_split_type'),)
+        "split_type in ('equal', 'exact')", name='chk_expenses_split_type'),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     group_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('groups.id'), index=True, nullable=False)
