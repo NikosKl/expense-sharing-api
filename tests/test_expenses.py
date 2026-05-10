@@ -3,7 +3,6 @@ from datetime import timezone, datetime
 from decimal import Decimal
 from tests.helpers import create_authenticated_group_members, create_authenticated_user
 
-
 def test_create_equal_split_expenses_success(client):
     context = create_authenticated_group_members(client)
     owner = context['owner']
@@ -197,7 +196,7 @@ def test_unsupported_split_type(client):
         'payer_id': owner['user']['id'],
         'title': 'test_expense',
         'total_amount': 100,
-        'split_type': 'exact',
+        'split_type': 'percentage',
         'expense_date': datetime.now(timezone.utc).isoformat(),
         'participants': [
             {'user_id': owner['user']['id']},
@@ -546,4 +545,94 @@ def test_non_group_member_cannot_get_expense_by_id(client):
     response = client.get(f'/expenses/{expense_id}', headers=new_user['headers'])
     assert response.status_code == 403
 
+def test_exact_split_expense_success(client):
+    context = create_authenticated_group_members(client)
 
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'exact',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id'], 'amount': 30},
+            {'user_id': member['user']['id'], 'amount': 20}
+        ]}
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data['split_type'] == 'exact'
+    assert Decimal(data['total_amount']) == Decimal('50')
+
+    splits = {split['user_id']: split['amount_owed'] for split in data['splits']}
+
+    assert Decimal(splits[owner['user']['id']]) == Decimal('30')
+    assert Decimal(splits[member['user']['id']]) == Decimal('20')
+
+def test_exact_split_sum_mismatch(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'exact',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id'], 'amount': 30},
+            {'user_id': member['user']['id'], 'amount': 30}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 422
+
+def test_exact_split_without_participants(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'exact',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': []
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 422
+
+def test_exact_split_with_non_positive_amount(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'exact',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id'], 'amount': 30},
+            {'user_id': member['user']['id'], 'amount': -20}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 422
