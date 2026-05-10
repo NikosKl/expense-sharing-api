@@ -74,6 +74,9 @@ def create_expense(db: Session, current_user: User, group_id: uuid.UUID, expense
         participant_splits = [(participant.user_id, participant.amount) for participant in expense_data.participants]
         amount_split = calculate_exact_splits(expense_data.total_amount, participant_splits)
 
+    else:
+        raise ValueError('Unsupported expense split type')
+
     group_expense = Expense(
         group_id=group_id,
         created_by=current_user.id,
