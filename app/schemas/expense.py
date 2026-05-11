@@ -39,6 +39,10 @@ class ExactExpenseParticipant(BaseModel):
     user_id: uuid.UUID
     amount: Decimal = Field(gt=0)
 
+class PercentageExpenseParticipant(BaseModel):
+    user_id: uuid.UUID
+    percentage: Decimal = Field(gt=0)
+
 class ExpenseCreateBase(BaseModel):
     payer_id: uuid.UUID
     title: str
@@ -77,5 +81,24 @@ class ExactExpenseCreateRequest(ExpenseCreateBase):
             raise ValueError('Participants amount must equal total_amount')
         return self
 
-ExpenseCreateRequest = Annotated[Union[EqualExpenseCreateRequest, ExactExpenseCreateRequest],
+class PercentageExpenseCreateRequest(ExpenseCreateBase):
+    split_type: Literal['percentage'] = 'percentage'
+    participants: list[PercentageExpenseParticipant]
+
+    @field_validator('participants')
+    @classmethod
+    def validate_participants(cls, value: list[PercentageExpenseParticipant]) -> list[PercentageExpenseParticipant]:
+        if not value:
+            raise ValueError('Participants must not be empty')
+        return value
+
+    @model_validator(mode='after')
+    def participants_total_percentage_equal_to_100(self):
+        participant_percentage = sum(participant.percentage for participant in self.participants)
+
+        if participant_percentage != Decimal('100'):
+            raise ValueError('Participants total percentage must equal to 100%')
+        return self
+
+ExpenseCreateRequest = Annotated[Union[EqualExpenseCreateRequest, ExactExpenseCreateRequest, PercentageExpenseCreateRequest],
 Field(discriminator='split_type')]
