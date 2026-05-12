@@ -5,7 +5,8 @@ from decimal import Decimal, ROUND_DOWN
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from app.models import User, Expense, ExpenseSplit
-from app.schemas.expense import ExpenseCreateRequest, ExactExpenseCreateRequest, EqualExpenseCreateRequest
+from app.schemas.expense import ExpenseCreateRequest, ExactExpenseCreateRequest, EqualExpenseCreateRequest, \
+    PercentageExpenseCreateRequest
 from app.services.exceptions import InvalidPayerError, InvalidParticipantsError, GroupNotFound, PermissionDeniedError, \
     InvalidExpenseSplitError, ExpenseNotFound
 from app.services.group_member_service import get_group_member
@@ -61,6 +62,35 @@ def calculate_exact_splits(total_amount: Decimal, participant_splits: list[tuple
         raise InvalidExpenseSplitError()
     return participant_splits
 
+def calculate_percentage_splits(total_amount: Decimal, participant_splits: list[tuple[uuid.UUID, Decimal]]) -> list[tuple[uuid.UUID, Decimal]]:
+    if not participant_splits:
+        raise InvalidParticipantsError()
+
+    cent = Decimal('0.01')
+
+    splits = []
+
+    for index, (participant_id, percentage) in enumerate(participant_splits):
+        amount = ((total_amount * percentage) / 100).quantize(cent, rounding=ROUND_DOWN)
+        splits.append((participant_id, amount))
+
+    rounded_sum = sum(amount for _, amount in splits)
+
+    remainder = total_amount - rounded_sum
+    extra_cent = int(remainder/cent)
+
+    adjusted_splits = []
+
+    for index, (participant_id, amount) in enumerate(splits):
+        if index < extra_cent:
+            amount += cent
+        adjusted_splits.append((participant_id, amount))
+
+    if sum(amount for _, amount in adjusted_splits) != total_amount:
+        raise InvalidExpenseSplitError()
+    return adjusted_splits
+
+
 def create_expense(db: Session, current_user: User, group_id: uuid.UUID, expense_data: ExpenseCreateRequest) -> Expense:
     participant_ids = [participant.user_id for participant in expense_data.participants]
 
@@ -73,6 +103,11 @@ def create_expense(db: Session, current_user: User, group_id: uuid.UUID, expense
 
         participant_splits = [(participant.user_id, participant.amount) for participant in expense_data.participants]
         amount_split = calculate_exact_splits(expense_data.total_amount, participant_splits)
+
+    elif isinstance(expense_data, PercentageExpenseCreateRequest):
+
+        participant_splits = [(participant.user_id, participant.percentage) for participant in expense_data.participants]
+        amount_split = calculate_percentage_splits(expense_data.total_amount, participant_splits)
 
     else:
         raise ValueError('Unsupported expense split type')
