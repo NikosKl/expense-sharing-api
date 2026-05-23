@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from app.models import User, Expense, ExpenseSplit
 from app.schemas.expense import ExpenseCreateRequest, ExactExpenseCreateRequest, EqualExpenseCreateRequest, \
-    PercentageExpenseCreateRequest
+    PercentageExpenseCreateRequest, ExpenseUpdateRequest
 from app.services.exceptions import InvalidPayerError, InvalidParticipantsError, GroupNotFound, PermissionDeniedError, \
     InvalidExpenseSplitError, ExpenseNotFound
 from app.services.group_member_service import get_group_member
@@ -166,69 +166,69 @@ def get_expense_by_id(db: Session, current_user: User, expense_id: uuid.UUID) ->
         raise PermissionDeniedError()
     return expense
 
-def update_expense(db: Session, current_user: User, expense_id: uuid.UUID, expense_data: ExpenseCreateRequest) -> Expense:
+def update_expense(db: Session, current_user: User, expense_id: uuid.UUID, expense_data: ExpenseUpdateRequest) -> Expense:
     expense = get_expense_by_id(db, current_user, expense_id)
 
     if expense.created_by != current_user.id:
         raise PermissionDeniedError()
 
-    participant_ids = [participant.user_id for participant in expense_data.participants]
-    validate_expense_memberships(db, current_user, expense.group_id, expense_data.payer_id, participant_ids)
+    is_metadata_update = expense_data.participants is None
+    amount_split = None
 
-    if isinstance(expense_data, EqualExpenseCreateRequest):
-        amount_split = calculate_equal_splits(expense_data.total_amount, participant_ids)
+    if is_metadata_update:
+        if expense_data.payer_id is not None:
+            payer_id_validation = get_group_member(db, expense.group_id, expense_data.payer_id)
+            if payer_id_validation is None:
+                raise InvalidPayerError()
 
-    elif isinstance(expense_data, ExactExpenseCreateRequest):
-
-        participant_splits = [(participant.user_id, participant.amount) for participant in expense_data.participants]
-        amount_split = calculate_exact_splits(expense_data.total_amount, participant_splits)
-
-    elif isinstance(expense_data, PercentageExpenseCreateRequest):
-
-        participant_splits = [(participant.user_id, participant.percentage) for participant in
-                              expense_data.participants]
-        amount_split = calculate_percentage_splits(expense_data.total_amount, participant_splits)
+        for field, value in expense_data.model_dump(exclude_unset=True).items():
+            setattr(expense, field, value)
 
     else:
-        raise ValueError('Unsupported expense split type')
 
-    update_fields = {
-        'payer_id',
-        'title',
-        'description',
-        'total_amount',
-        'split_type',
-        'expense_date'
-    }
+        participant_ids = [participant.user_id for participant in expense_data.participants]
 
-    update_data = expense_data.model_dump(exclude_unset=True)
+        payer_id = expense_data.payer_id or expense.payer_id
+        validate_expense_memberships(db, current_user, expense.group_id, payer_id, participant_ids)
 
-    for field in update_fields:
-        if field in update_data:
-            setattr(expense, field, update_data[field])
+        if expense_data.split_type == 'equal':
+            amount_split = calculate_equal_splits(expense_data.total_amount, participant_ids)
+        elif expense_data.split_type == 'exact':
+            participant_splits = [(participant.user_id, participant.amount) for participant in expense_data.participants]
+            amount_split = calculate_exact_splits(expense_data.total_amount, participant_splits)
+        elif expense_data.split_type == 'percentage':
+            participant_splits = [(participant.user_id, participant.percentage) for participant in expense_data.participants]
+            amount_split = calculate_percentage_splits(expense_data.total_amount, participant_splits)
+        else:
+            raise ValueError('Unsupported expense split type')
+
+        update_data_without_participants = expense_data.model_dump(exclude_unset=True, exclude={'participants'})
+        for field, value in update_data_without_participants.items():
+            setattr(expense, field, value)
 
     try:
-        stmt = delete(ExpenseSplit).where(ExpenseSplit.expense_id == expense.id)
-        db.execute(stmt)
+        if amount_split is not None:
+            stmt = delete(ExpenseSplit).where(ExpenseSplit.expense_id == expense_id)
+            db.execute(stmt)
 
-        new_splits = [
-            ExpenseSplit(
-                expense_id=expense.id,
-                user_id=participant_id,
-                amount_owed=amount,
-            )
-            for participant_id, amount in amount_split
-        ]
-
-        db.add_all(new_splits)
+            new_splits = [
+                ExpenseSplit(
+                    expense_id=expense_id,
+                    user_id=participant_id,
+                    amount_owed=amount
+                )
+                for participant_id, amount in amount_split
+            ]
+            db.add_all(new_splits)
         db.commit()
+        db.refresh(expense)
 
-        stmt = select(Expense).options(selectinload(Expense.splits)).where(Expense.id == expense.id)
-        updated_splits = db.scalar(stmt)
+        stmt = (select(Expense).where(Expense.id == expense_id).options(selectinload(Expense.splits)))
+        updated_expense = db.scalar(stmt)
 
-        if updated_splits is None:
+        if updated_expense is None:
             raise ExpenseNotFound()
-        return updated_splits
+        return updated_expense
 
     except IntegrityError:
         db.rollback()
