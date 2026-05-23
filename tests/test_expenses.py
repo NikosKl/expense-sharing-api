@@ -757,3 +757,485 @@ def test_percentage_split_sum_expense(client):
     assert Decimal(splits[owner['user']['id']]) == Decimal('35.17')
     assert Decimal(splits[member['user']['id']]) == Decimal('15.07')
     assert sum(splits.values()) == Decimal('50.24')
+
+def test_patch_metadata_only_success(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    expense_id = data['id']
+    split_ids = {split['id'] for split in data['splits']}
+
+    update_payload = {
+        'title': 'updated test expense',
+        'description': 'updated description',
+        'expense_date': '2026-05-21T15:30:00+03:00'
+    }
+
+    response = client.patch(f'/expenses/{expense_id}', json=update_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    updated_split_ids = {split['id'] for split in data['splits']}
+
+    assert data['title'] == 'updated test expense'
+    assert data['description'] == 'updated description'
+    assert data['expense_date'] == update_payload['expense_date']
+    assert Decimal(data['total_amount']) == Decimal('50')
+    assert data['split_type'] == 'equal'
+    assert data['payer_id'] == owner['user']['id']
+    assert split_ids == updated_split_ids
+
+    split_user_ids = {split['user_id'] for split in data['splits']}
+    assert split_user_ids == {
+        owner['user']['id'],
+        member['user']['id']
+    }
+    split_amount = [Decimal(split['amount_owed']) for split in data['splits']]
+    assert sum(split_amount) == Decimal('50')
+    assert all(amount == Decimal('25') for amount in split_amount)
+
+def test_patch_payer_only_success(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'exact',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id'], 'amount': 40},
+            {'user_id': member['user']['id'], 'amount': 10}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    expense_id = data['id']
+    split_ids = {split['id'] for split in data['splits']}
+
+    update_payload = {
+        'payer_id': member['user']['id'],
+    }
+
+    response = client.patch(f'/expenses/{expense_id}', json=update_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    updated_splits = {split['id'] for split in data['splits']}
+
+    assert data['payer_id'] == member['user']['id']
+    assert split_ids == updated_splits
+
+    splits = {split['user_id']: split['amount_owed'] for split in data['splits']}
+
+    assert Decimal(splits[owner['user']['id']]) == Decimal('40')
+    assert Decimal(splits[member['user']['id']]) == Decimal('10')
+
+def test_patch_invalid_payer(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    new_user = create_authenticated_user(
+        client,
+        email='new_user@example.com',
+        username='new user',
+        password='long_password',
+    )
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id'],},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    expense_id = data['id']
+
+    update_payload = {
+        'payer_id': new_user['user']['id'],
+    }
+
+    response = client.patch(f'/expenses/{expense_id}', json=update_payload, headers=owner['headers'])
+    assert response.status_code == 400
+
+def test_patch_split_equal_success(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    expense_id = data['id']
+
+    update_payload = {
+        'total_amount': 100,
+        'split_type': 'equal',
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.patch(f'/expenses/{expense_id}', json=update_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+
+    assert Decimal(data['total_amount']) == Decimal('100')
+
+    split_user_ids = {split['user_id'] for split in data['splits']}
+    assert split_user_ids == {
+        owner['user']['id'],
+        member['user']['id']
+    }
+    split_amount = [Decimal(split['amount_owed']) for split in data['splits']]
+    assert sum(split_amount) == Decimal('100')
+    assert all(amount == Decimal('50') for amount in split_amount)
+
+def test_patch_equal_to_exact_success(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    expense_id = data['id']
+
+    update_payload = {
+        'total_amount': 50,
+        'split_type': 'exact',
+        'participants': [
+            {'user_id': owner['user']['id'], 'amount': 40},
+            {'user_id': member['user']['id'], 'amount': 10},
+        ]
+    }
+
+    response = client.patch(f'/expenses/{expense_id}', json=update_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+
+    assert Decimal(data['total_amount']) == Decimal('50')
+    assert data['split_type'] == 'exact'
+
+    splits = {split['user_id']: split['amount_owed'] for split in data['splits']}
+
+    assert Decimal(splits[owner['user']['id']]) == Decimal('40')
+    assert Decimal(splits[member['user']['id']]) == Decimal('10')
+
+def test_patch_exact_to_percentage_success(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'exact',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id'], 'amount': 40},
+            {'user_id': member['user']['id'], 'amount': 10}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    expense_id = data['id']
+
+    update_payload = {
+        'total_amount': 50,
+        'split_type': 'percentage',
+        'participants': [
+            {'user_id': owner['user']['id'], 'percentage': 90},
+            {'user_id': member['user']['id'], 'percentage': 10},
+        ]
+    }
+
+    response = client.patch(f'/expenses/{expense_id}', json=update_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+
+    assert Decimal(data['total_amount']) == Decimal('50')
+    assert data['split_type'] == 'percentage'
+
+    splits = {split['user_id']: split['amount_owed'] for split in data['splits']}
+
+    assert Decimal(splits[owner['user']['id']]) == Decimal('45')
+    assert Decimal(splits[member['user']['id']]) == Decimal('5')
+
+def test_patch_missing_split_fields(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'exact',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id'], 'amount': 40},
+            {'user_id': member['user']['id'], 'amount': 10}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    expense_id = data['id']
+
+    update_payload = {
+        'total_amount': 100,
+    }
+
+    response = client.patch(f'/expenses/{expense_id}', json=update_payload, headers=owner['headers'])
+    assert response.status_code == 422
+
+def test_patch_non_creator_failure(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'exact',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id'], 'amount': 40},
+            {'user_id': member['user']['id'], 'amount': 10}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    expense_id = data['id']
+
+    update_payload = {
+        'total_amount': 50,
+        'split_type': 'percentage',
+        'participants': [
+            {'user_id': owner['user']['id'], 'percentage': 90},
+            {'user_id': member['user']['id'], 'percentage': 10},
+        ]
+    }
+
+    response = client.patch(f'/expenses/{expense_id}', json=update_payload, headers=member['headers'])
+    assert response.status_code == 403
+
+def test_patch_expense_not_found(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'exact',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id'], 'amount': 40},
+            {'user_id': member['user']['id'], 'amount': 10}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    expense_id = uuid.uuid4()
+
+    update_payload = {
+        'total_amount': 50,
+        'split_type': 'percentage',
+        'participants': [
+            {'user_id': owner['user']['id'], 'percentage': 90},
+            {'user_id': member['user']['id'], 'percentage': 10},
+        ]
+    }
+
+    response = client.patch(f'/expenses/{expense_id}', json=update_payload, headers=owner['headers'])
+    assert response.status_code == 404
+
+def test_patch_equal_split_cannot_have_participant_amounts(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'exact',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id'], 'amount': 40},
+            {'user_id': member['user']['id'], 'amount': 10}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    expense_id = data['id']
+
+    update_payload = {
+        'total_amount': 50,
+        'split_type': 'equal',
+        'participants': [
+            {'user_id': owner['user']['id'], 'amount': 25},
+            {'user_id': member['user']['id'], 'amount': 25},
+        ]
+    }
+
+    response = client.patch(f'/expenses/{expense_id}', json=update_payload, headers=owner['headers'])
+    assert response.status_code == 422
+
+def test_patch_exact_update_missing_amount(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    expense_id = data['id']
+
+    update_payload = {
+        'total_amount': 50,
+        'split_type': 'exact',
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']},
+        ]
+    }
+
+    response = client.patch(f'/expenses/{expense_id}', json=update_payload, headers=owner['headers'])
+    assert response.status_code == 422
+
+def test_patch_percentage_update_missing_percentage(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    expense_id = data['id']
+
+    update_payload = {
+        'total_amount': 50,
+        'split_type': 'percentage',
+        'participants': [
+            {'user_id': owner['user']['id'], 'amount': 25},
+            {'user_id': member['user']['id'], 'amount': 25},
+        ]
+    }
+
+    response = client.patch(f'/expenses/{expense_id}', json=update_payload, headers=owner['headers'])
+    assert response.status_code == 422
