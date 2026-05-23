@@ -1,5 +1,5 @@
 from typing import cast
-from sqlalchemy import select
+from sqlalchemy import select, delete
 import uuid
 from decimal import Decimal, ROUND_DOWN
 from sqlalchemy.exc import IntegrityError
@@ -165,3 +165,71 @@ def get_expense_by_id(db: Session, current_user: User, expense_id: uuid.UUID) ->
     if current_member is None:
         raise PermissionDeniedError()
     return expense
+
+def update_expense(db: Session, current_user: User, expense_id: uuid.UUID, expense_data: ExpenseCreateRequest) -> Expense:
+    expense = get_expense_by_id(db, current_user, expense_id)
+
+    if expense.created_by != current_user.id:
+        raise PermissionDeniedError()
+
+    participant_ids = [participant.user_id for participant in expense_data.participants]
+    validate_expense_memberships(db, current_user, expense.group_id, expense_data.payer_id, participant_ids)
+
+    if isinstance(expense_data, EqualExpenseCreateRequest):
+        amount_split = calculate_equal_splits(expense_data.total_amount, participant_ids)
+
+    elif isinstance(expense_data, ExactExpenseCreateRequest):
+
+        participant_splits = [(participant.user_id, participant.amount) for participant in expense_data.participants]
+        amount_split = calculate_exact_splits(expense_data.total_amount, participant_splits)
+
+    elif isinstance(expense_data, PercentageExpenseCreateRequest):
+
+        participant_splits = [(participant.user_id, participant.percentage) for participant in
+                              expense_data.participants]
+        amount_split = calculate_percentage_splits(expense_data.total_amount, participant_splits)
+
+    else:
+        raise ValueError('Unsupported expense split type')
+
+    update_fields = {
+        'payer_id',
+        'title',
+        'description',
+        'total_amount',
+        'split_type',
+        'expense_date'
+    }
+
+    update_data = expense_data.model_dump(exclude_unset=True)
+
+    for field in update_fields:
+        if field in update_data:
+            setattr(expense, field, update_data[field])
+
+    try:
+        stmt = delete(ExpenseSplit).where(ExpenseSplit.expense_id == expense.id)
+        db.execute(stmt)
+
+        new_splits = [
+            ExpenseSplit(
+                expense_id=expense.id,
+                user_id=participant_id,
+                amount_owed=amount,
+            )
+            for participant_id, amount in amount_split
+        ]
+
+        db.add_all(new_splits)
+        db.commit()
+
+        stmt = select(Expense).options(selectinload(Expense.splits)).where(Expense.id == expense.id)
+        updated_splits = db.scalar(stmt)
+
+        if updated_splits is None:
+            raise ExpenseNotFound()
+        return updated_splits
+
+    except IntegrityError:
+        db.rollback()
+        raise

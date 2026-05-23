@@ -1,8 +1,8 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal, Annotated, Union
-from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import Literal, Annotated, Union, Self
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 
 class ExpenseSplitResponse(BaseModel):
     id: uuid.UUID
@@ -74,7 +74,7 @@ class ExactExpenseCreateRequest(ExpenseCreateBase):
         return value
 
     @model_validator(mode='after')
-    def participants_amount_equal_total_amount(self):
+    def participants_amount_equal_total_amount(self) -> Self:
         participants_amount = sum(participant.amount for participant in self.participants)
 
         if participants_amount != self.total_amount:
@@ -93,11 +93,91 @@ class PercentageExpenseCreateRequest(ExpenseCreateBase):
         return value
 
     @model_validator(mode='after')
-    def participants_total_percentage_equal_to_100(self):
+    def participants_total_percentage_equal_to_100(self) -> Self:
         participant_percentage = sum(participant.percentage for participant in self.participants)
 
         if participant_percentage != Decimal('100'):
             raise ValueError('Participants total percentage must equal to 100%')
+        return self
+
+class ExpenseUpdateBase(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    payer_id: uuid.UUID | None = None
+    title: str | None = None
+    description: str | None = None
+    total_amount: Decimal | None = None
+    expense_date: datetime | None = None
+
+    @field_validator('total_amount')
+    @classmethod
+    def validate_positive_total_amount(cls, value: Decimal) -> Decimal | None:
+        if value is None:
+            return value
+        if value <= 0:
+            raise ValueError('Total amount must be positive')
+        return value
+
+class ExpenseUpdateParticipant(BaseModel):
+    user_id: uuid.UUID
+    amount: Decimal | None = None
+    percentage: Decimal | None = None
+
+    @field_validator('amount')
+    @classmethod
+    def validate_amount(cls, value: Decimal | None) -> Decimal | None:
+        if value is None:
+            return value
+        if value <= 0:
+            raise ValueError('Amount must be positive')
+        return value
+
+    @field_validator('percentage')
+    @classmethod
+    def validate_percentage(cls, value: Decimal | None) -> Decimal | None:
+        if value is None:
+            return value
+        if value <= 0:
+            raise ValueError('Percentage must be positive')
+        return value
+
+class ExpenseUpdateRequest(ExpenseUpdateBase):
+    split_type: Literal['equal', 'exact', 'percentage'] | None = None
+    participants: list[ExpenseUpdateParticipant] | None = None
+
+    @model_validator(mode='after')
+    def validate_split_update_fields(self) -> Self:
+        split_fields = [
+            self.total_amount is not None,
+            self.split_type is not None,
+            self.participants is not None,
+        ]
+
+        if not any(split_fields):
+            return self
+        if not all(split_fields):
+            raise ValueError('To update splits, all fields must be provided')
+        if not self.participants:
+            raise ValueError('Participants must not be empty')
+
+        if self.split_type == 'equal':
+            for participant in self.participants:
+                if participant.amount is not None:
+                    raise ValueError('Equal split participants must not include amount')
+                if participant.percentage is not None:
+                    raise ValueError('Equal split participants must not include percentage')
+        if self.split_type == 'exact':
+            for participant in self.participants:
+                if participant.amount is None:
+                    raise ValueError('Exact split participants must include amount')
+                if participant.percentage is not None:
+                    raise ValueError('Exact split participants must not include percentage')
+        if self.split_type == 'percentage':
+            for participant in self.participants:
+                if participant.amount is not None:
+                    raise ValueError('Percentage split participants must not include amount')
+                if participant.percentage is None:
+                    raise ValueError('Percentage split participants must include percentage')
         return self
 
 ExpenseCreateRequest = Annotated[Union[EqualExpenseCreateRequest, ExactExpenseCreateRequest, PercentageExpenseCreateRequest],

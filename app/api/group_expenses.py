@@ -26,7 +26,7 @@ def create_new_expense(group_id: uuid.UUID, expense_request: ExpenseCreateReques
     except InvalidParticipantsError:
         raise HTTPException(status_code=400, detail="All participants must be member of the group")
     except InvalidExpenseSplitError:
-        raise HTTPException(status_code=400, detail="Equal splits must sum up to total amount")
+        raise HTTPException(status_code=400, detail=" Splits must sum up to total amount")
 
 @router.get('/{group_id}/expenses', response_model=List[ExpenseResponse])
 def get_all_group_expenses(group_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
