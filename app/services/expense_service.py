@@ -233,3 +233,19 @@ def update_expense(db: Session, current_user: User, expense_id: uuid.UUID, expen
     except IntegrityError:
         db.rollback()
         raise
+
+def delete_expense(db: Session, current_user: User, expense_id: uuid.UUID) -> None:
+    expense = get_expense_by_id(db, current_user, expense_id)
+
+    if expense.created_by != current_user.id:
+        raise PermissionDeniedError()
+
+    try:
+        stmt = delete(ExpenseSplit).where(ExpenseSplit.expense_id == expense_id)
+        db.execute(stmt)
+
+        db.delete(expense)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise
