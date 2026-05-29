@@ -47,6 +47,10 @@ def test_create_settlement_success(client):
     assert 'settled_at' in data
     assert 'created_at' in data
 
+    assert 'created_by' in data
+    assert data['created_by'] == member['user']['id']
+    assert data['created_by'] == data['payer_id']
+
 def test_non_payer_cannot_create_settlement(client):
     context = create_authenticated_group_members(client)
 
