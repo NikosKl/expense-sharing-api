@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.models import User, Settlement
 from app.schemas.settlement import SettlementCreateRequest
 from app.services.exceptions import GroupNotFound, PermissionDeniedError, InvalidPayerError, InvalidReceiverError, \
-    InvalidSettlementAmountError
+    InvalidSettlementAmountError, SettlementNotFound
 from app.services.group_member_service import get_group_member
 from app.services.group_service import get_group_by_raw_id
 from app.services.helpers import calculate_group_balances
@@ -83,3 +83,22 @@ def validate_settlement_against_balances(db: Session, current_user: User, group_
     max_amount = min(abs(payer_balance), receiver_balance)
     if amount > max_amount:
         raise InvalidSettlementAmountError()
+
+def delete_settlement(db: Session, current_user: User, settlement_id: uuid.UUID) -> None:
+    stmt = select(Settlement).where(Settlement.id == settlement_id)
+    settlement = db.scalar(stmt)
+
+    if settlement is None:
+        raise SettlementNotFound()
+
+    validate_settlement_access(db, current_user, settlement.group_id)
+
+    if settlement.created_by != current_user.id:
+        raise PermissionDeniedError()
+
+    try:
+        db.delete(settlement)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise

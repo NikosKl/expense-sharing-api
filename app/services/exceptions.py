@@ -26,3 +26,5 @@ class InvalidSettlementAmountError(Exception):
     pass
 class ExpenseNotFound(Exception):
     pass
+class SettlementNotFound(Exception):
+    pass
