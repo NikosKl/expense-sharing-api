@@ -19,6 +19,7 @@ class SettlementCreateRequest(BaseModel):
 
 class SettlementResponse(BaseModel):
     id: uuid.UUID
+    created_by: uuid.UUID
     group_id: uuid.UUID
     payer_id: uuid.UUID
     receiver_id: uuid.UUID

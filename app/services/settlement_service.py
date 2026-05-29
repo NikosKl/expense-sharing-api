@@ -35,6 +35,7 @@ def create_settlement(db: Session, current_user: User, group_id: uuid.UUID, sett
 
     settlement = Settlement(
         group_id=group_id,
+        created_by=current_user.id,
         payer_id=settlement_data.payer_id,
         receiver_id=settlement_data.receiver_id,
         amount=settlement_data.amount,
