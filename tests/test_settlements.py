@@ -314,7 +314,6 @@ def test_valid_settlement_reduce_balance(client):
     response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
     assert response.status_code == 200
 
-
     settlement_payload = {
         'payer_id': member['user']['id'],
         'receiver_id': owner['user']['id'],
@@ -333,3 +332,228 @@ def test_valid_settlement_reduce_balance(client):
     assert Decimal(owner_balance['amount']) == Decimal(5)
     member_balance = next(balance for balance in balances if balance['user_id'] == member['user']['id'])
     assert Decimal(member_balance['amount']) == Decimal(-5)
+
+def test_delete_settlement_success(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 20,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']},
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    settlement_payload = {
+        'payer_id': member['user']['id'],
+        'receiver_id': owner['user']['id'],
+        'amount': 10,
+        'settled_at': datetime.now(timezone.utc).isoformat()
+    }
+
+    response = client.post(f'/groups/{group_id}/settlements', json=settlement_payload, headers=member['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    settlement_id = data['id']
+
+    response = client.delete(f'/settlements/{settlement_id}', headers=member['headers'])
+    assert response.status_code == 204
+    assert not response.content
+
+def test_delete_settlement_not_found(client):
+
+    context = create_authenticated_group_members(client)
+    member = context['member']
+    settlement_id = uuid.uuid4()
+
+    response = client.delete(f'/settlements/{settlement_id}', headers=member['headers'])
+    assert response.status_code == 404
+
+def test_delete_settlement_not_authorized(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': member['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 20,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']},
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    settlement_payload = {
+        'payer_id': owner['user']['id'],
+        'receiver_id': member['user']['id'],
+        'amount': 10,
+        'settled_at': datetime.now(timezone.utc).isoformat()
+    }
+
+    response = client.post(f'/groups/{group_id}/settlements', json=settlement_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    settlement_id = data['id']
+
+    response = client.delete(f'/settlements/{settlement_id}', headers=member['headers'])
+    assert response.status_code == 403
+
+def test_delete_settlement_removed_from_group_list(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 20,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']},
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    settlement_payload = {
+        'payer_id': member['user']['id'],
+        'receiver_id': owner['user']['id'],
+        'amount': 10,
+        'settled_at': datetime.now(timezone.utc).isoformat()
+    }
+
+    response = client.post(f'/groups/{group_id}/settlements', json=settlement_payload, headers=member['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    settlement_id = data['id']
+
+    response = client.delete(f'/settlements/{settlement_id}', headers=member['headers'])
+    assert response.status_code == 204
+
+    response = client.get(f'/groups/{group_id}/settlements', headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    settlement_ids = {settlement['id'] for settlement in data}
+    assert settlement_id not in settlement_ids
+
+def test_delete_settlements_balance_recalculation_after_delete(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 20,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']},
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    settlement_payload = {
+        'payer_id': member['user']['id'],
+        'receiver_id': owner['user']['id'],
+        'amount': 10,
+        'settled_at': datetime.now(timezone.utc).isoformat()
+    }
+
+    response = client.post(f'/groups/{group_id}/settlements', json=settlement_payload, headers=member['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    settlement_id = data['id']
+
+    response = client.get(f'/groups/{group_id}/balances', headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    balances = data['balances']
+    owner_balance = next(balance for balance in balances if balance['user_id'] == owner['user']['id'])
+    assert Decimal(owner_balance['amount']) == Decimal('0')
+    member_balance = next(balance for balance in balances if balance['user_id'] == member['user']['id'])
+    assert Decimal(member_balance['amount']) == Decimal('0')
+
+    response = client.delete(f'/settlements/{settlement_id}', headers=member['headers'])
+    assert response.status_code == 204
+
+    response = client.get(f'/groups/{group_id}/balances', headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    balances = data['balances']
+    owner_balance = next(balance for balance in balances if balance['user_id'] == owner['user']['id'])
+    assert Decimal(owner_balance['amount']) == Decimal('10')
+    member_balance = next(balance for balance in balances if balance['user_id'] == member['user']['id'])
+    assert Decimal(member_balance['amount']) == Decimal('-10')
+
+def test_delete_settlement_removed_creator_cannot_delete(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+    user_id = member['user']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 20,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']},
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    settlement_payload = {
+        'payer_id': member['user']['id'],
+        'receiver_id': owner['user']['id'],
+        'amount': 10,
+        'settled_at': datetime.now(timezone.utc).isoformat()
+    }
+
+    response = client.post(f'/groups/{group_id}/settlements', json=settlement_payload, headers=member['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    settlement_id = data['id']
+
+    response = client.delete(f'/groups/{group_id}/members/{user_id}', headers=owner['headers'])
+    assert response.status_code == 204
+
+    response = client.delete(f'/settlements/{settlement_id}', headers=member['headers'])
+    assert response.status_code == 403
+
+
