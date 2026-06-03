@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, field_validator
 
 
 class SettlementCreateRequest(BaseModel):
@@ -31,3 +31,18 @@ class SettlementResponse(BaseModel):
     model_config = {
         'from_attributes': True
     }
+
+class SettlementUpdateRequest(BaseModel):
+    receiver_id: uuid.UUID | None = None
+    amount: Decimal | None = None
+    note: str | None = None
+    settled_at: datetime | None = None
+
+    @field_validator('amount')
+    @classmethod
+    def amount_validator(cls, value: Decimal | None) -> Decimal | None:
+        if value is None:
+            return None
+        if value <= 0:
+            raise ValueError("Amount must be positive")
+        return value
