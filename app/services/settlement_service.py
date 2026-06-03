@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.models import User, Settlement
-from app.schemas.settlement import SettlementCreateRequest
+from app.schemas.settlement import SettlementCreateRequest, SettlementUpdateRequest
 from app.services.exceptions import GroupNotFound, PermissionDeniedError, InvalidPayerError, InvalidReceiverError, \
     InvalidSettlementAmountError, SettlementNotFound
 from app.services.group_member_service import get_group_member
@@ -67,8 +67,8 @@ def validate_settlement_access(db: Session, current_user: User, group_id: uuid.U
     if current_member is None:
         raise PermissionDeniedError()
 
-def validate_settlement_against_balances(db: Session, current_user: User, group_id: uuid.UUID, payer_id: uuid.UUID, receiver_id: uuid.UUID, amount: Decimal) -> None:
-    group_balances = calculate_group_balances(db, current_user, group_id)
+def validate_settlement_against_balances(db: Session, current_user: User, group_id: uuid.UUID, payer_id: uuid.UUID, receiver_id: uuid.UUID, amount: Decimal, exclude_settlement_id: uuid.UUID | None = None) -> None:
+    group_balances = calculate_group_balances(db, current_user, group_id, exclude_settlement_id=exclude_settlement_id)
 
     payer_balance = group_balances.get(payer_id)
     receiver_balance = group_balances.get(receiver_id)
@@ -83,6 +83,17 @@ def validate_settlement_against_balances(db: Session, current_user: User, group_
     max_amount = min(abs(payer_balance), receiver_balance)
     if amount > max_amount:
         raise InvalidSettlementAmountError()
+
+def get_settlement_by_id(db: Session, current_user: User, settlement_id: uuid.UUID) -> Settlement:
+    stmt = select(Settlement).where(Settlement.id == settlement_id)
+    settlement = db.scalar(stmt)
+
+    if settlement is None:
+        raise SettlementNotFound()
+    current_member = get_group_member(db, settlement.group_id, current_user.id)
+    if current_member is None:
+        raise PermissionDeniedError()
+    return settlement
 
 def delete_settlement(db: Session, current_user: User, settlement_id: uuid.UUID) -> None:
     stmt = select(Settlement).where(Settlement.id == settlement_id)
@@ -102,3 +113,44 @@ def delete_settlement(db: Session, current_user: User, settlement_id: uuid.UUID)
     except IntegrityError:
         db.rollback()
         raise
+
+def update_settlement(db: Session, current_user: User, settlement_id: uuid.UUID, settlement_data: SettlementUpdateRequest) -> Settlement:
+    settlement = get_settlement_by_id(db, current_user, settlement_id)
+
+    if settlement.created_by != current_user.id:
+        raise PermissionDeniedError()
+
+    if settlement_data.receiver_id is not None:
+        receiver_member = get_group_member(db, settlement.group_id, settlement_data.receiver_id)
+
+        if receiver_member is None:
+            raise InvalidReceiverError()
+
+        if settlement_data.receiver_id == settlement.payer_id:
+            raise InvalidReceiverError()
+
+    new_receiver_id = settlement_data.receiver_id or settlement.receiver_id
+    new_amount = settlement_data.amount or settlement.amount
+
+    validate_settlement_against_balances(
+        db,
+        current_user,
+        settlement.group_id,
+        settlement.payer_id,
+        new_receiver_id,
+        new_amount,
+        exclude_settlement_id=settlement.id
+        )
+
+    for field, value in settlement_data.model_dump(exclude_unset=True).items():
+        setattr(settlement, field, value)
+
+    try:
+        db.commit()
+        db.refresh(settlement)
+        return settlement
+    except IntegrityError:
+        db.rollback()
+        raise
+
+

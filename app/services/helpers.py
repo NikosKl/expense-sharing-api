@@ -6,7 +6,7 @@ from app.models import User, Settlement
 from app.services.expense_service import get_group_expenses
 from app.services.group_member_service import get_group_members
 
-def calculate_group_balances(db: Session, current_user: User, group_id: uuid.UUID) -> dict[uuid.UUID, Decimal]:
+def calculate_group_balances(db: Session, current_user: User, group_id: uuid.UUID, exclude_settlement_id: uuid.UUID | None = None) -> dict[uuid.UUID, Decimal]:
     group_members = get_group_members(db, current_user, group_id)
 
     balances: dict[uuid.UUID, Decimal] = {
@@ -26,6 +26,8 @@ def calculate_group_balances(db: Session, current_user: User, group_id: uuid.UUI
     group_settlements = db.scalars(stmt).all()
 
     for settlement in group_settlements:
+        if exclude_settlement_id is not None and settlement.id == exclude_settlement_id:
+            continue
         balances[settlement.payer_id] += settlement.amount
         balances[settlement.receiver_id] -= settlement.amount
     return balances
