@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.models import User, Settlement
 from app.schemas.settlement import SettlementCreateRequest, SettlementUpdateRequest
 from app.services.exceptions import GroupNotFound, PermissionDeniedError, InvalidPayerError, InvalidReceiverError, \
-    InvalidSettlementAmountError, SettlementNotFound
+    InvalidSettlementAmountError, SettlementNotFound, InvalidSettlementParticipantError
 from app.services.group_member_service import get_group_member
 from app.services.group_service import get_group_by_raw_id
 from app.services.helpers import calculate_group_balances
@@ -127,7 +127,7 @@ def update_settlement(db: Session, current_user: User, settlement_id: uuid.UUID,
             raise InvalidReceiverError()
 
         if settlement_data.receiver_id == settlement.payer_id:
-            raise InvalidReceiverError()
+            raise InvalidSettlementParticipantError()
 
     new_receiver_id = settlement_data.receiver_id or settlement.receiver_id
     new_amount = settlement_data.amount or settlement.amount
