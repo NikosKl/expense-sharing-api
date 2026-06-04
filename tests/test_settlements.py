@@ -556,4 +556,339 @@ def test_delete_settlement_removed_creator_cannot_delete(client):
     response = client.delete(f'/settlements/{settlement_id}', headers=member['headers'])
     assert response.status_code == 403
 
+def test_patch_settlement_success(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 20,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']},
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    settlement_payload = {
+        'payer_id': member['user']['id'],
+        'receiver_id': owner['user']['id'],
+        'amount': 10,
+        'settled_at': datetime.now(timezone.utc).isoformat()
+    }
+
+    response = client.post(f'/groups/{group_id}/settlements', json=settlement_payload, headers=member['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    settlement_id = data['id']
+    assert Decimal(data['amount']) == Decimal('10')
+
+    response = client.get(f'/groups/{group_id}/balances', headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    balances = data['balances']
+    owner_balance = next(balance for balance in balances if balance['user_id'] == owner['user']['id'])
+    assert Decimal(owner_balance['amount']) == Decimal(0)
+    member_balance = next(balance for balance in balances if balance['user_id'] == member['user']['id'])
+    assert Decimal(member_balance['amount']) == Decimal(0)
+
+    updated_settlement_payload = {
+        'amount': 5,
+        'note': 'note added',
+        'settled_at': '2026-06-04T15:30:00+03:00',
+    }
+
+    response = client.patch(f'/settlements/{settlement_id}', json=updated_settlement_payload, headers=member['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    assert data['note'] == 'note added'
+    assert Decimal(data['amount']) == Decimal(5)
+    assert data['settled_at'] == updated_settlement_payload['settled_at']
+
+    response = client.get(f'/groups/{group_id}/balances', headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    balances = data['balances']
+    owner_balance = next(balance for balance in balances if balance['user_id'] == owner['user']['id'])
+    assert Decimal(owner_balance['amount']) == Decimal(5)
+    member_balance = next(balance for balance in balances if balance['user_id'] == member['user']['id'])
+    assert Decimal(member_balance['amount']) == Decimal(-5)
+
+def test_patch_settlement_receiver_success(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    new_user = create_authenticated_user(
+        client,
+        email='new_user@example.com',
+        username='new_user',
+        password='long_password',
+    )
+
+    response = client.post(f'/groups/{group_id}/members', json={'user_id': new_user['user']['id']}, headers=owner['headers'])
+    assert response.status_code == 200
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 20,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']},
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    expense_payload = {
+        'payer_id': new_user['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 20,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': new_user['user']['id']},
+            {'user_id': member['user']['id']},
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=new_user['headers'])
+    assert response.status_code == 200
+
+    settlement_payload = {
+        'payer_id': member['user']['id'],
+        'receiver_id': owner['user']['id'],
+        'amount': 5,
+        'settled_at': datetime.now(timezone.utc).isoformat()
+    }
+
+    response = client.post(f'/groups/{group_id}/settlements', json=settlement_payload, headers=member['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    settlement_id = data['id']
+
+    updated_settlement_payload = {
+        'receiver_id': new_user['user']['id'],
+    }
+
+    response = client.patch(f'/settlements/{settlement_id}', json=updated_settlement_payload, headers=member['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    assert data['receiver_id'] == new_user['user']['id']
+    assert data['payer_id'] == member['user']['id']
+    assert Decimal(data['amount']) == Decimal('5')
+
+    response = client.get(f'/groups/{group_id}/balances', headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    balances = data['balances']
+    owner_balance = next(balance for balance in balances if balance['user_id'] == owner['user']['id'])
+    assert Decimal(owner_balance['amount']) == Decimal(10)
+    member_balance = next(balance for balance in balances if balance['user_id'] == member['user']['id'])
+    assert Decimal(member_balance['amount']) == Decimal(-15)
+    new_user_balance = next(balance for balance in balances if balance['user_id'] == new_user['user']['id'])
+    assert Decimal(new_user_balance['amount']) == Decimal(5)
+
+def test_patch_settlement_not_found(client):
+    context = create_authenticated_group_members(client)
+
+    member = context['member']
+
+    settlement_payload = {
+        'amount': 20
+    }
+
+    new_settlement_id = uuid.uuid4()
+
+    response = client.patch(f'/settlements/{new_settlement_id}', json=settlement_payload, headers=member['headers'])
+    assert response.status_code == 404
+
+def test_patch_settlement_non_creator_cannot_update(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 20,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']},
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    settlement_payload = {
+        'payer_id': member['user']['id'],
+        'receiver_id': owner['user']['id'],
+        'amount': 10,
+        'settled_at': datetime.now(timezone.utc).isoformat()
+    }
+
+    response = client.post(f'/groups/{group_id}/settlements', json=settlement_payload, headers=member['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    settlement_id = data['id']
+
+    updated_settlement_payload = {
+        'amount': 5,
+        'note': 'note added',
+        'settled_at': '2026-06-04T15:30:00+03:00',
+    }
+
+    response = client.patch(f'/settlements/{settlement_id}', json=updated_settlement_payload, headers=owner['headers'])
+    assert response.status_code == 403
+
+def test_patch_settlement_receiver_not_in_group(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    new_user = create_authenticated_user(
+        client,
+        email='new_user@example.com',
+        username='new_user',
+        password='long_password',
+    )
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 20,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']},
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    settlement_payload = {
+        'payer_id': member['user']['id'],
+        'receiver_id': owner['user']['id'],
+        'amount': 5,
+        'settled_at': datetime.now(timezone.utc).isoformat()
+    }
+
+    response = client.post(f'/groups/{group_id}/settlements', json=settlement_payload, headers=member['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    settlement_id = data['id']
+
+    updated_settlement_payload = {
+        'receiver_id': new_user['user']['id'],
+    }
+
+    response = client.patch(f'/settlements/{settlement_id}', json=updated_settlement_payload, headers=member['headers'])
+    assert response.status_code == 400
+
+def test_patch_settlement_receiver_equal_to_payer(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 20,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']},
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    settlement_payload = {
+        'payer_id': member['user']['id'],
+        'receiver_id': owner['user']['id'],
+        'amount': 5,
+        'settled_at': datetime.now(timezone.utc).isoformat()
+    }
+
+    response = client.post(f'/groups/{group_id}/settlements', json=settlement_payload, headers=member['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    settlement_id = data['id']
+
+    updated_settlement_payload = {
+        'receiver_id': member['user']['id'],
+    }
+
+    response = client.patch(f'/settlements/{settlement_id}', json=updated_settlement_payload, headers=member['headers'])
+    assert response.status_code == 400
+
+def test_patch_settlement_amount_too_large(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 20,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']},
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    settlement_payload = {
+        'payer_id': member['user']['id'],
+        'receiver_id': owner['user']['id'],
+        'amount': 10,
+        'settled_at': datetime.now(timezone.utc).isoformat()
+    }
+
+    response = client.post(f'/groups/{group_id}/settlements', json=settlement_payload, headers=member['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    settlement_id = data['id']
+
+    updated_settlement_payload = {
+        'amount': 15,
+        'note': 'note added',
+        'settled_at': '2026-06-04T15:30:00+03:00',
+    }
+
+    response = client.patch(f'/settlements/{settlement_id}', json=updated_settlement_payload, headers=member['headers'])
+    assert response.status_code == 400
 
