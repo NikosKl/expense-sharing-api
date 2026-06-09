@@ -983,3 +983,71 @@ def test_list_group_settlements_forbidden_for_removed_member(client):
     response = client.get(f'/groups/{group_id}/settlements', headers=member['headers'])
     assert response.status_code == 403
 
+def test_list_group_settlements_filter_by_payer(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    new_user = create_authenticated_user(
+        client,
+        email='new_user@example.com',
+        username='new_user',
+        password='long_password',
+    )
+
+    response = client.post(f'/groups/{group_id}/members', json={'user_id': new_user['user']['id']}, headers=owner['headers'])
+    assert response.status_code == 200
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 100,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']},
+            {'user_id': new_user['user']['id']},
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    member_settlement_payload = {
+        'payer_id': member['user']['id'],
+        'receiver_id': owner['user']['id'],
+        'amount': 5,
+        'note': 'first settlement',
+        'settled_at': datetime.now(timezone.utc).isoformat(),
+    }
+
+    new_user_settlement_payload = {
+        'payer_id': new_user['user']['id'],
+        'receiver_id': owner['user']['id'],
+        'amount': 15,
+        'note': 'second settlement',
+        'settled_at': datetime.now(timezone.utc).isoformat(),
+    }
+
+    response = client.post(f'/groups/{group_id}/settlements', json=member_settlement_payload, headers=member['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    member_settlement_id = data['id']
+
+    response = client.post(f'/groups/{group_id}/settlements', json=new_user_settlement_payload, headers=new_user['headers'])
+    assert response.status_code == 200
+
+    params = {'payer_id': member['user']['id']}
+
+    response = client.get(f"/groups/{group_id}/settlements", params=params, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]['id'] == member_settlement_id
+    assert all(settlement['payer_id'] == member['user']['id'] for settlement in data)
+
+
+
