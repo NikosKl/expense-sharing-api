@@ -892,3 +892,94 @@ def test_patch_settlement_amount_too_large(client):
     response = client.patch(f'/settlements/{settlement_id}', json=updated_settlement_payload, headers=member['headers'])
     assert response.status_code == 400
 
+def test_list_group_settlements_success(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 100,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']},
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    first_settlement_payload = {
+        'payer_id': member['user']['id'],
+        'receiver_id': owner['user']['id'],
+        'amount': 5,
+        'note': 'first settlement',
+        'settled_at': '2026-06-04T15:30:00+03:00',
+    }
+
+    second_settlement_payload = {
+        'payer_id': member['user']['id'],
+        'receiver_id': owner['user']['id'],
+        'amount': 15,
+        'note': 'second settlement',
+        'settled_at': '2026-06-08T15:30:00+03:00',
+    }
+
+    response = client.post(f'/groups/{group_id}/settlements', json=first_settlement_payload, headers=member['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    first_settlement_id = data['id']
+    response = client.post(f'/groups/{group_id}/settlements', json=second_settlement_payload, headers=member['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    second_settlement_id = data['id']
+
+    response = client.get(f'/groups/{group_id}/settlements', headers=member['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 2
+    settlement_ids = [settlement['id'] for settlement in data]
+    assert [second_settlement_id, first_settlement_id] == settlement_ids
+    assert 'id' in data[0]
+    assert 'created_by' in data[0]
+    assert 'group_id' in data[0]
+    assert 'payer_id' in data[0]
+    assert 'receiver_id' in data[0]
+    assert 'amount' in data[0]
+    assert 'note' in data[0]
+    assert 'settled_at' in data[0]
+    assert 'created_at' in data[0]
+
+def test_list_group_settlements_forbidden_for_non_member(client):
+    context = create_authenticated_group_members(client)
+    group_id = context['group']['id']
+
+    new_user = create_authenticated_user(
+        client,
+        email='new_user@example.com',
+        username='new_user',
+        password='long_password',
+    )
+
+    response = client.get(f'/groups/{group_id}/settlements', headers=new_user['headers'])
+    assert response.status_code == 403
+
+def test_list_group_settlements_forbidden_for_removed_member(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+    member_id = member['user']['id']
+
+    response = client.delete(f'/groups/{group_id}/members/{member_id}', headers=owner['headers'])
+    assert response.status_code == 204
+
+    response = client.get(f'/groups/{group_id}/settlements', headers=member['headers'])
+    assert response.status_code == 403
+
