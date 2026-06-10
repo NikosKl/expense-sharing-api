@@ -1049,5 +1049,199 @@ def test_list_group_settlements_filter_by_payer(client):
     assert data[0]['id'] == member_settlement_id
     assert all(settlement['payer_id'] == member['user']['id'] for settlement in data)
 
+def test_list_group_settlements_filter_by_receiver(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    new_user = create_authenticated_user(
+        client,
+        email='new_user@example.com',
+        username='new_user',
+        password='long_password',
+    )
+
+
+    response = client.post(f'/groups/{group_id}/members', json={'user_id': new_user['user']['id']}, headers=owner['headers'])
+    assert response.status_code == 200
+
+    owner_expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'owner_paid_expense',
+        'total_amount': 100,
+        'split_type': 'exact',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id'], 'amount': 10},
+            {'user_id': member['user']['id'], 'amount': 90},
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=owner_expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    new_user_expense_payload = {
+        'payer_id': new_user['user']['id'],
+        'title': 'new_user_paid_expense',
+        'total_amount': 100,
+        'split_type': 'exact',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': new_user['user']['id'], 'amount': 10},
+            {'user_id': member['user']['id'], 'amount': 90},
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=new_user_expense_payload, headers=new_user['headers'])
+    assert response.status_code == 200
+
+    first_settlement_payload = {
+        'payer_id': member['user']['id'],
+        'receiver_id': owner['user']['id'],
+        'amount': 5,
+        'note': 'first settlement',
+        'settled_at': datetime.now(timezone.utc).isoformat(),
+    }
+
+    second_settlement_payload = {
+        'payer_id': member['user']['id'],
+        'receiver_id': new_user['user']['id'],
+        'amount': 15,
+        'note': 'second settlement',
+        'settled_at': datetime.now(timezone.utc).isoformat(),
+    }
+
+    response = client.post(f'/groups/{group_id}/settlements', json=first_settlement_payload, headers=member['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    first_settlement_id = data['id']
+
+    response = client.post(f'/groups/{group_id}/settlements', json=second_settlement_payload, headers=member['headers'])
+    assert response.status_code == 200
+
+    params = {'receiver_id': owner['user']['id']}
+
+    response = client.get(f"/groups/{group_id}/settlements", params=params, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]['id'] == first_settlement_id
+    assert all(settlement['receiver_id'] == owner['user']['id'] for settlement in data)
+
+def test_list_group_settlements_filter_by_receiver_and_payer(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    new_user = create_authenticated_user(
+        client,
+        email='new_user@example.com',
+        username='new_user',
+        password='long_password',
+    )
+
+    response = client.post(f'/groups/{group_id}/members', json={'user_id': new_user['user']['id']}, headers=owner['headers'])
+    assert response.status_code == 200
+
+    other_user = create_authenticated_user(
+        client,
+        email='other_user@example.com',
+        username='other_user',
+        password='long_password',
+    )
+
+    response = client.post(f'/groups/{group_id}/members', json={'user_id': other_user['user']['id']}, headers=owner['headers'])
+    assert response.status_code == 200
+
+    owner_expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'owner_paid_expense',
+        'total_amount': 110,
+        'split_type': 'exact',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id'], 'amount': 10},
+            {'user_id': member['user']['id'], 'amount': 50},
+            {'user_id': other_user['user']['id'], 'amount': 50},
+        ],
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=owner_expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    new_user_expense_payload = {
+        'payer_id': new_user['user']['id'],
+        'title': 'new_user_paid_expense',
+        'total_amount': 110,
+        'split_type': 'exact',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': new_user['user']['id'], 'amount': 10},
+            {'user_id': member['user']['id'], 'amount': 50},
+            {'user_id': other_user['user']['id'], 'amount': 50},
+        ],
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=new_user_expense_payload, headers=new_user['headers'])
+    assert response.status_code == 200
+
+    first_settlement_payload = {
+        'payer_id': member['user']['id'],
+        'receiver_id': owner['user']['id'],
+        'amount': 5,
+        'note': 'matches both filters',
+        'settled_at': datetime.now(timezone.utc).isoformat(),
+    }
+
+    second_settlement_payload = {
+        'payer_id': member['user']['id'],
+        'receiver_id': new_user['user']['id'],
+        'amount': 15,
+        'note': 'matches payer only',
+        'settled_at': datetime.now(timezone.utc).isoformat(),
+    }
+
+    third_settlement_payload = {
+        'payer_id': other_user['user']['id'],
+        'receiver_id': owner['user']['id'],
+        'amount': 5,
+        'note': 'matches receiver only',
+        'settled_at': datetime.now(timezone.utc).isoformat(),
+    }
+
+    response = client.post(f'/groups/{group_id}/settlements', json=first_settlement_payload, headers=member['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    matching_settlement_id = data['id']
+
+    response = client.post(f'/groups/{group_id}/settlements', json=second_settlement_payload, headers=member['headers'])
+    assert response.status_code == 200
+
+    response = client.post(f'/groups/{group_id}/settlements', json=third_settlement_payload, headers=other_user['headers'])
+    assert response.status_code == 200
+
+    params = {
+        'payer_id': member['user']['id'],
+        'receiver_id': owner['user']['id']}
+
+    response = client.get(f'/groups/{group_id}/settlements', params=params, headers=owner['headers'])
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert len(data) == 1
+    assert data[0]['id'] == matching_settlement_id
+    assert data[0]['payer_id'] == member['user']['id']
+    assert data[0]['receiver_id'] == owner['user']['id']
+
+    assert all(
+        settlement['payer_id'] == member['user']['id']
+        and settlement['receiver_id'] == owner['user']['id']
+        for settlement in data
+    )
 
 
