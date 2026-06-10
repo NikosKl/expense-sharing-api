@@ -52,7 +52,7 @@ def create_settlement(db: Session, current_user: User, group_id: uuid.UUID, sett
         db.rollback()
         raise
 
-def get_group_settlements(db: Session, current_user: User, group_id: uuid.UUID, payer_id: uuid.UUID | None = None, receiver_id: uuid.UUID | None = None) -> list[Settlement]:
+def get_group_settlements(db: Session, current_user: User, group_id: uuid.UUID, limit: int, offset: int, payer_id: uuid.UUID | None = None, receiver_id: uuid.UUID | None = None) -> list[Settlement]:
     validate_settlement_access(db, current_user, group_id)
 
     stmt = select(Settlement).where(Settlement.group_id == group_id)
@@ -62,7 +62,7 @@ def get_group_settlements(db: Session, current_user: User, group_id: uuid.UUID, 
     if receiver_id is not None:
         stmt = stmt.where(Settlement.receiver_id == receiver_id)
 
-    stmt = stmt.order_by(Settlement.settled_at.desc(), Settlement.created_at.desc())
+    stmt = stmt.order_by(Settlement.settled_at.desc(), Settlement.created_at.desc()).limit(limit).offset(offset)
 
     settlements = cast(list[Settlement], db.scalars(stmt).all())
     return settlements

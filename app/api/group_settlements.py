@@ -1,5 +1,6 @@
 import uuid
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.params import Query
 from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.db.session import get_db
@@ -28,9 +29,16 @@ def create_group_settlement(group_id: uuid.UUID, settlement_request: SettlementC
         raise HTTPException(status_code=400, detail='Settlement amount exceeds the allowed outstanding balance')
 
 @router.get('/{group_id}/settlements', response_model=list[SettlementResponse])
-def list_group_settlements(group_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user), payer_id: uuid.UUID | None = None, receiver_id: uuid.UUID | None = None):
+def list_group_settlements(
+        group_id: uuid.UUID,
+        limit: int = Query(20, gt=0),
+        offset: int = Query(0, ge=0),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+        payer_id: uuid.UUID | None = None,
+        receiver_id: uuid.UUID | None = None):
     try:
-        settlements = get_group_settlements(db, current_user, group_id, payer_id, receiver_id)
+        settlements = get_group_settlements(db, current_user, group_id, limit, offset, payer_id, receiver_id)
         return settlements
     except GroupNotFound:
         raise HTTPException(status_code=404, detail='Group not found')
