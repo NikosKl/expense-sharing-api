@@ -1366,3 +1366,225 @@ def test_delete_expense_from_expense_list(client):
     data = response.json()
     expense_ids = {expense['id'] for expense in data}
     assert expense_id not in expense_ids
+
+def test_list_group_expenses_ordering(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    first_expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'equal',
+        'expense_date': '2026-06-08T15:30:00+03:00',
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=first_expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    first_expense_id = data['id']
+
+    second_expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'equal',
+        'expense_date': '2026-06-09T15:30:00+03:00',
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=second_expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    second_expense_id = data['id']
+
+    third_expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'equal',
+        'expense_date': '2026-06-11T15:30:00+03:00',
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=third_expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    third_expense_id = data['id']
+
+    response = client.get(f'/groups/{group_id}/expenses', headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    expense_ids = [expense['id'] for expense in data]
+    assert [third_expense_id, second_expense_id, first_expense_id] == expense_ids
+
+def test_list_group_expenses_pagination(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    first_expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'equal',
+        'expense_date': '2026-06-08T15:30:00+03:00',
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=first_expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    second_expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'equal',
+        'expense_date': '2026-06-09T15:30:00+03:00',
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=second_expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    second_expense_id = data['id']
+
+    third_expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'equal',
+        'expense_date': '2026-06-11T15:30:00+03:00',
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=third_expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    third_expense_id = data['id']
+
+    params = {
+        'limit': 2,
+        'offset': 0
+    }
+
+    response = client.get(f'/groups/{group_id}/expenses', params=params, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    expense_ids = [expense['id'] for expense in data]
+    assert [third_expense_id, second_expense_id] == expense_ids
+
+def test_list_group_expenses_pagination_second_newest_result(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    first_expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'equal',
+        'expense_date': '2026-06-08T15:30:00+03:00',
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=first_expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    second_expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'equal',
+        'expense_date': '2026-06-09T15:30:00+03:00',
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=second_expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    second_expense_id = data['id']
+
+    third_expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'equal',
+        'expense_date': '2026-06-11T15:30:00+03:00',
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=third_expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    params = {
+        'limit': 1,
+        'offset': 1
+    }
+
+    response = client.get(f'/groups/{group_id}/expenses', params=params, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    expense_ids = [expense['id'] for expense in data]
+    assert [second_expense_id] == expense_ids
+
+def test_list_group_expenses_rejects_zero_limit(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    group_id = context['group']['id']
+
+    params = {
+        'limit': 0
+    }
+
+    response = client.get(f'/groups/{group_id}/expenses', params=params, headers=owner['headers'])
+    assert response.status_code == 422
+
+def test_list_group_expenses_rejects_negative_offset(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    group_id = context['group']['id']
+
+    params = {
+        'offset': -1
+    }
+
+    response = client.get(f'/groups/{group_id}/expenses', params=params, headers=owner['headers'])
+    assert response.status_code == 422

@@ -1,6 +1,7 @@
 import uuid
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.params import Query
 from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.db.session import get_db
@@ -29,9 +30,14 @@ def create_new_expense(group_id: uuid.UUID, expense_request: ExpenseCreateReques
         raise HTTPException(status_code=400, detail=" Splits must sum up to total amount")
 
 @router.get('/{group_id}/expenses', response_model=List[ExpenseResponse])
-def get_all_group_expenses(group_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_all_group_expenses(
+        group_id: uuid.UUID,
+        limit: int = Query(20, gt=0),
+        offset: int = Query(0, ge=0),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)):
     try:
-        expenses = get_group_expenses(db, current_user, group_id)
+        expenses = get_group_expenses(db, current_user, group_id, limit, offset)
         return expenses
     except GroupNotFound:
         raise HTTPException(status_code=404, detail="Group not found")
