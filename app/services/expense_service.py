@@ -142,7 +142,7 @@ def create_expense(db: Session, current_user: User, group_id: uuid.UUID, expense
         db.rollback()
         raise
 
-def get_group_expenses(db: Session, current_user: User, group_id: uuid.UUID, limit: int | None = None, offset: int | None = None) -> list[Expense]:
+def get_group_expenses(db: Session, current_user: User, group_id: uuid.UUID, limit: int | None = None, offset: int | None = None, payer_id: uuid.UUID | None = None) -> list[Expense]:
     group = get_group_by_raw_id(db, group_id)
     if group is None:
         raise GroupNotFound()
@@ -150,10 +150,12 @@ def get_group_expenses(db: Session, current_user: User, group_id: uuid.UUID, lim
     if current_member is None:
         raise PermissionDeniedError()
 
-    stmt = (select(Expense)
-            .where(Expense.group_id == group_id)
-            .options(selectinload(Expense.splits))
-            .order_by(Expense.expense_date.desc(), Expense.created_at.desc()))
+    stmt = (select(Expense).where(Expense.group_id == group_id))
+
+    if payer_id is not None:
+        stmt = stmt.where(Expense.payer_id == payer_id)
+
+    stmt = stmt.options(selectinload(Expense.splits)).order_by(Expense.expense_date.desc(), Expense.created_at.desc())
 
     if limit is not None:
         stmt = stmt.limit(limit)

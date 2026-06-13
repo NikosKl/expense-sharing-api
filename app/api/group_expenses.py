@@ -35,9 +35,10 @@ def get_all_group_expenses(
         limit: int = Query(20, gt=0),
         offset: int = Query(0, ge=0),
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user)):
+        current_user: User = Depends(get_current_user),
+        payer_id: uuid.UUID | None = None):
     try:
-        expenses = get_group_expenses(db, current_user, group_id, limit, offset)
+        expenses = get_group_expenses(db, current_user, group_id, limit, offset, payer_id)
         return expenses
     except GroupNotFound:
         raise HTTPException(status_code=404, detail="Group not found")
