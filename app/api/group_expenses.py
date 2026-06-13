@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.params import Query
@@ -34,11 +35,12 @@ def get_all_group_expenses(
         group_id: uuid.UUID,
         limit: int = Query(20, gt=0),
         offset: int = Query(0, ge=0),
+        payer_id: uuid.UUID | None = None,
+        date_from: datetime | None = None,
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user),
-        payer_id: uuid.UUID | None = None):
+        current_user: User = Depends(get_current_user)):
     try:
-        expenses = get_group_expenses(db, current_user, group_id, limit, offset, payer_id)
+        expenses = get_group_expenses(db, current_user, group_id, limit, offset, payer_id, date_from)
         return expenses
     except GroupNotFound:
         raise HTTPException(status_code=404, detail="Group not found")

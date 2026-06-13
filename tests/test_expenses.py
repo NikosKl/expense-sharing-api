@@ -1640,4 +1640,69 @@ def test_list_group_expenses_filtered_by_payer_id(client):
     assert [expense_id] == expense_ids
     assert all(expense['payer_id'] == owner['user']['id'] for expense in data)
 
+def test_list_group_expenses_filtered_by_date_from(client):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    first_expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'equal',
+        'expense_date': '2026-06-10T15:30:00+03:00',
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=first_expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    second_expense_payload = {
+        'payer_id': member['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'equal',
+        'expense_date': '2026-06-08T15:30:00+03:00',
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=second_expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    third_expense_payload = {
+        'payer_id': member['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'equal',
+        'expense_date': '2026-06-13T15:30:00+03:00',
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=third_expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    third_expense_id = data['id']
+
+    params = {
+        'date_from': '2026-06-11T15:30:00+03:00'
+    }
+
+    response = client.get(f'/groups/{group_id}/expenses', params=params, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+
+    assert len(data) == 1
+    expense_ids = [expense['id'] for expense in data]
+    assert [third_expense_id] == expense_ids
 
