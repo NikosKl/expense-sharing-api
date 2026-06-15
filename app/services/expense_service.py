@@ -143,7 +143,16 @@ def create_expense(db: Session, current_user: User, group_id: uuid.UUID, expense
         db.rollback()
         raise
 
-def get_group_expenses(db: Session, current_user: User, group_id: uuid.UUID, limit: int | None = None, offset: int | None = None, payer_id: uuid.UUID | None = None, date_from: datetime | None = None) -> list[Expense]:
+def get_group_expenses(
+        db: Session,
+        current_user: User,
+        group_id: uuid.UUID,
+        limit: int | None = None,
+        offset: int | None = None,
+        payer_id: uuid.UUID | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None) -> list[Expense]:
+
     group = get_group_by_raw_id(db, group_id)
     if group is None:
         raise GroupNotFound()
@@ -158,6 +167,9 @@ def get_group_expenses(db: Session, current_user: User, group_id: uuid.UUID, lim
 
     if date_from is not None:
         stmt = stmt.where(Expense.expense_date >= date_from)
+
+    if date_to is not None:
+        stmt = stmt.where(Expense.expense_date <= date_to)
 
     stmt = stmt.options(selectinload(Expense.splits)).order_by(Expense.expense_date.desc(), Expense.created_at.desc())
 
