@@ -24,11 +24,15 @@ Alternative documentation:
 - Create groups
 - Add and remove group members
 - Create shared expenses
-- Equal split support
+- Equal, exact and percentage split support
+- Update and delete expenses
 - Persist expense split rows for each participant
 - List group expenses
 - Get a single expense by ID
+- Expense list filtering and pagination
 - Create and list settlements
+- Update and delete settlements
+- Settlement list filtering and pagination
 - Automated test coverage for core domains
 
 ## Tech Stack
@@ -52,6 +56,7 @@ expense-sharing-api/
 │   │   ├── expenses.py
 │   │   ├── group_expenses.py
 │   │   ├── group_members.py
+│   │   ├── group_settlements.py
 │   │   ├── groups.py
 │   │   └── settlements.py
 │   ├── core/
@@ -190,6 +195,22 @@ Authorization: Bearer <access_token>
 - ``POST /groups/{group_id}/expenses``
 - ``GET /groups/{group_id}/expenses``
 - ``GET /expenses/{expense_id}``
+- ``PATCH /expenses/{expense_id}``
+- ``DELETE /expenses/{expense_id}``
+
+#### List group expenses query parameters
+
+Used with:
+
+`GET /groups/{group_id}/expenses`
+
+| Parameter | Description |
+| --- | --- |
+| `limit` | Number of results to return. Defaults to `20`. |
+| `offset` | Number of results to skip. Defaults to `0`. |
+| `payer_id` | Filter expenses by payer user ID. |
+| `date_from` | Return expenses on or after this datetime. |
+| `date_to` | Return expenses on or before this datetime. |
 
 ### Balances 
 - ``GET /groups/{group_id}/balances``
@@ -197,6 +218,21 @@ Authorization: Bearer <access_token>
 ### Settlements
 - ``POST /groups/{group_id}/settlements``
 - ``GET /groups/{group_id}/settlements``
+- ``PATCH /settlements/{settlement_id}``
+- ``DELETE /settlements/{settlement_id}``
+
+#### List group settlements query parameters
+
+Used with:
+
+`GET /groups/{group_id}/settlements`
+
+| Parameter     | Description                                    |
+|---------------|------------------------------------------------|
+| `limit`       | Number of results to return. Defaults to `20`. |
+| `offset`      | Number of results to skip. Defaults to `0`.    |
+| `payer_id`    | Filter settlements by payer user ID.           |
+| `receiver_id` | Filter settlements by receiver user ID.        |
 
 ## Running Tests
 
@@ -213,8 +249,8 @@ pytest
 - receiver must currently be owed money
 - settlement amount cannot exceed the allowed outstanding balance
 
-## Current MVP Notes
+## Current Notes
 
-- Only ``equal`` split is supported
+- ``equal``, ``exact``, ``percentage`` splits are supported
 - Balances are computed on demand
 - Settlements are not tied to a specific expense
