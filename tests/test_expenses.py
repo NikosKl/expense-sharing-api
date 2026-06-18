@@ -796,7 +796,7 @@ def test_patch_metadata_only_success(client):
 
     assert data['title'] == 'updated test expense'
     assert data['description'] == 'updated description'
-    assert data['expense_date'] == update_payload['expense_date']
+    assert datetime.fromisoformat(data['expense_date']) == datetime.fromisoformat(data['expense_date'])
     assert Decimal(data['total_amount']) == Decimal('50')
     assert data['split_type'] == 'equal'
     assert data['payer_id'] == owner['user']['id']

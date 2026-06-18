@@ -611,7 +611,7 @@ def test_patch_settlement_success(client):
     data = response.json()
     assert data['note'] == 'note added'
     assert Decimal(data['amount']) == Decimal(5)
-    assert data['settled_at'] == updated_settlement_payload['settled_at']
+    assert datetime.fromisoformat(data['settled_at']) == datetime.fromisoformat(updated_settlement_payload['settled_at'])
 
     response = client.get(f'/groups/{group_id}/balances', headers=owner['headers'])
     assert response.status_code == 200
