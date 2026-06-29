@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     app_name: str = Field(default='Expense Sharing API', alias='APP_NAME')
-    app_version: str = Field(default='1.0', alias='APP_VERSION')
+    app_version: str = Field(default='1.1.0', alias='APP_VERSION')
     environment: Literal['development', 'testing', 'production'] = Field(default='development', alias='ENVIRONMENT')
 
     database_url: str = Field(..., alias='DATABASE_URL')
