@@ -1,6 +1,10 @@
 import uuid
 from datetime import timezone, datetime
 from decimal import Decimal
+
+from sqlalchemy import select
+
+from app.models import ExpenseSplit
 from tests.helpers import create_authenticated_group_members, create_authenticated_user
 
 def test_create_equal_split_expenses_success(client):
@@ -1842,3 +1846,44 @@ def test_list_group_expenses_filtered_by_date_to_and_date_from(client):
     assert len(data) == 2
     expense_ids = [expense['id'] for expense in data]
     assert [third_expense_id, second_expense_id] == expense_ids
+
+def test_delete_expense_cascade_deletes_splits(client, db_session):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'test_expense',
+        'total_amount': 50,
+        'split_type': 'equal',
+        'expense_date': datetime.now(timezone.utc).isoformat(),
+        'participants': [
+            {'user_id': owner['user']['id']},
+            {'user_id': member['user']['id']}
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/expenses', json=expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    data = response.json()
+    expense_id = data['id']
+
+    stmt = select(ExpenseSplit).where(ExpenseSplit.expense_id == expense_id)
+    splits = db_session.scalars(stmt).all()
+
+    assert len(splits) == 2
+
+    response = client.delete(f'/expenses/{expense_id}', headers=owner['headers'])
+    assert response.status_code == 204
+
+    db_session.expire_all()
+
+    stmt = select(ExpenseSplit).where(ExpenseSplit.expense_id == expense_id)
+    splits = db_session.scalars(stmt).all()
+
+    assert splits == []
+

@@ -267,9 +267,6 @@ def delete_expense(db: Session, current_user: User, expense_id: uuid.UUID) -> No
         raise PermissionDeniedError()
 
     try:
-        stmt = delete(ExpenseSplit).where(ExpenseSplit.expense_id == expense_id)
-        db.execute(stmt)
-
         db.delete(expense)
         db.commit()
     except IntegrityError:

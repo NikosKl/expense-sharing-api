@@ -17,7 +17,7 @@ class ExpenseSplit(Base):
         UniqueConstraint("expense_id", "user_id", name="uniq_expense_splits_expense_user"))
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    expense_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('expenses.id'), index=True, nullable=False)
+    expense_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('expenses.id', ondelete='CASCADE'), index=True, nullable=False)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('users.id'), index=True, nullable=False)
     amount_owed: Mapped[Decimal] = mapped_column(Numeric(10,2), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
