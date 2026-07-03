@@ -46,3 +46,12 @@ class SettlementUpdateRequest(BaseModel):
         if value <= 0:
             raise ValueError("Amount must be positive")
         return value
+
+class SettlementSuggestion(BaseModel):
+    payer_id: uuid.UUID
+    receiver_id: uuid.UUID
+    amount: Decimal
+
+class SettlementSuggestionsResponse(BaseModel):
+    group_id: uuid.UUID
+    suggestions: list[SettlementSuggestion]

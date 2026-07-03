@@ -11,6 +11,7 @@ from app.api.group_settlements import router as group_settlements_router
 from app.api.group_members import router as group_members_router
 from app.api.expenses import router as expenses_router
 from app.api.settlements import router as settlements_router
+from app.api.settlement_suggestions import router as settlement_suggestions_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -36,6 +37,7 @@ app.include_router(balances_router)
 app.include_router(group_settlements_router)
 app.include_router(expenses_router)
 app.include_router(settlements_router)
+app.include_router(settlement_suggestions_router)
 
 @app.get("/")
 def read_root():
