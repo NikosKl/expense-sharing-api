@@ -24,7 +24,7 @@ Alternative documentation:
 - Create groups
 - Add and remove group members
 - Create shared expenses
-- Equal, exact and percentage split support
+- Equal, exact, percentage split support
 - Update and delete expenses
 - Persist expense split rows for each participant
 - List group expenses
@@ -34,6 +34,7 @@ Alternative documentation:
 - Update and delete settlements
 - Settlement list filtering and pagination
 - Automated test coverage for core domains
+- Settlement suggestions based on current group balances
 
 ## Tech Stack
 
@@ -58,6 +59,7 @@ expense-sharing-api/
 │   │   ├── group_members.py
 │   │   ├── group_settlements.py
 │   │   ├── groups.py
+│   │   ├── settlement_suggestions.py
 │   │   └── settlements.py
 │   ├── core/
 │   │   ├── config.py
@@ -89,6 +91,7 @@ expense-sharing-api/
 │   │   ├── group_service.py
 │   │   ├── helpers.py
 │   │   ├── settlement_service.py
+│   │   ├── settlement_suggestion_service.py
 │   │   └── user_service.py
 │   └── main.py
 ├── migrations/
@@ -101,6 +104,7 @@ expense-sharing-api/
 │   ├── test_expenses.py
 │   ├── test_group_members.py
 │   ├── test_groups.py
+│   ├── test_settlement_suggestions.py
 │   └── test_settlements.py
 ├── .gitignore
 ├── alembic.ini
@@ -218,6 +222,7 @@ Used with:
 ### Settlements
 - ``POST /groups/{group_id}/settlements``
 - ``GET /groups/{group_id}/settlements``
+- ``GET /groups/{group_id}/settlement-suggestions``
 - ``PATCH /settlements/{settlement_id}``
 - ``DELETE /settlements/{settlement_id}``
 
@@ -244,13 +249,15 @@ pytest
 
 ## Settlement Notes
 
-- only the payer can create a settlement
-- payer must currently owe money
-- receiver must currently be owed money
-- settlement amount cannot exceed the allowed outstanding balance
+- Only the payer can create a settlement
+- Payer must currently owe money
+- Receiver must currently be owed money
+- Settlement amount cannot exceed the allowed outstanding balance
+- Settlement suggestions are read-only previews that show who should pay whom based on current balances. They do not create settlement records.
 
 ## Current Notes
 
 - ``equal``, ``exact``, ``percentage`` splits are supported
+- Expense splits are cascade-deleted when an expense is deleted
 - Balances are computed on demand
 - Settlements are not tied to a specific expense
