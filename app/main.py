@@ -1,7 +1,10 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy import text
 from app.core.config import settings
+from app.core.rate_limit import limiter, rate_limit_exceeded_handler
 from app.db.session import DBSession
 from app.api.auth import router as auth_router
 from app.api.groups import router as group_router
@@ -28,6 +31,10 @@ app = FastAPI(
     version=settings.app_version,
     lifespan=lifespan
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 app.include_router(auth_router)
 app.include_router(group_router)

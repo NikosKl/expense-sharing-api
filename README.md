@@ -35,6 +35,7 @@ Alternative documentation:
 - Settlement list filtering and pagination
 - Automated test coverage for core domains
 - Settlement suggestions based on current group balances
+- Rate limiting for authentication endpoints
 
 ## Tech Stack
 
@@ -63,6 +64,7 @@ expense-sharing-api/
 │   │   └── settlements.py
 │   ├── core/
 │   │   ├── config.py
+│   │   ├── rate_limit.py
 │   │   └── security.py
 │   ├── db/
 │   │   ├── base.py
@@ -184,6 +186,20 @@ Authorization: Bearer <access_token>
 - ``POST /auth/register``
 - ``POST /auth/login``
 - ``GET /auth/me``
+
+### Rate Limiting
+
+The authentication endpoints are rate limited:
+
+- `POST /auth/register`
+- `POST /auth/login`
+
+Default limits are configured with:
+
+- `AUTH_REGISTER_RATE_LIMIT`
+- `AUTH_LOGIN_RATE_LIMIT`
+
+Exceeded limits return `429 Too Many Requests`.
 
 ### Groups
 - ``POST /groups``
