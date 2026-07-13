@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.models import GroupMember, User
+from app.services.audit_log_service import create_audit_log
 from app.services.exceptions import GroupNotFound, PermissionDeniedError, UserNotFound, GroupMemberAlreadyExists, \
     CannotRemoveSelfFromGroupError
 from app.services.group_service import get_group_by_id, get_group_by_raw_id
@@ -32,8 +33,22 @@ def add_member_to_group(db: Session, current_user: User, group_id: uuid.UUID, us
         role="member"
     )
 
-    db.add(group_member)
     try:
+        db.add(group_member)
+        db.flush()
+
+        create_audit_log(
+            db=db,
+            group_id=group_id,
+            performed_by_id=current_user.id,
+            action='group_member.added',
+            target_type='group_member',
+            target_id=group_member.id,
+            details={
+                'added_user_id': str(user_to_add),
+                'role': group_member.role
+            }
+        )
         db.commit()
         db.refresh(group_member)
         return group_member
@@ -75,5 +90,22 @@ def remove_group_member(db: Session, current_user: User, group_id: uuid.UUID, us
     if member is None:
         raise UserNotFound()
 
-    db.delete(member)
-    db.commit()
+    try:
+        create_audit_log(
+            db=db,
+            group_id=group_id,
+            performed_by_id=current_user.id,
+            action='group_member.removed',
+            target_type='group_member',
+            target_id=member.id,
+            details={
+                'removed_user_id': str(user_to_remove),
+                'role': member.role
+            }
+        )
+
+        db.delete(member)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise
