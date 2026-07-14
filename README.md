@@ -36,6 +36,7 @@ Alternative documentation:
 - Automated test coverage for core domains
 - Settlement suggestions based on current group balances
 - Rate limiting for authentication endpoints
+- Group audit logs for expenses, settlements, and membership changes
 
 ## Tech Stack
 
@@ -52,6 +53,7 @@ Alternative documentation:
 expense-sharing-api/
 ├── app/
 │   ├── api/
+│   │   ├── audit_logs.py
 │   │   ├── auth.py
 │   │   ├── balances.py
 │   │   ├── deps.py
@@ -70,6 +72,7 @@ expense-sharing-api/
 │   │   ├── base.py
 │   │   └── session.py
 │   ├── models/
+│   │   ├── audit_log.py
 │   │   ├── expense.py
 │   │   ├── expense_splits.py
 │   │   ├── group.py
@@ -77,6 +80,7 @@ expense-sharing-api/
 │   │   ├── settlement.py
 │   │   └── user.py
 │   ├── schemas/
+│   │   ├── audit_log.py
 │   │   ├── auth.py
 │   │   ├── balance.py
 │   │   ├── expense.py
@@ -85,6 +89,7 @@ expense-sharing-api/
 │   │   ├── settlement.py
 │   │   └── user.py
 │   ├── services/
+│   │   ├── audit_log_service.py
 │   │   ├── auth_service.py
 │   │   ├── balance_service.py
 │   │   ├── exceptions.py
@@ -101,6 +106,7 @@ expense-sharing-api/
 ├── tests/
 │   ├── conftest.py
 │   ├── helpers.py
+│   ├── test_audit_logs.py
 │   ├── test_auth.py
 │   ├── test_balances.py
 │   ├── test_expenses.py
@@ -255,6 +261,10 @@ Used with:
 | `payer_id`    | Filter settlements by payer user ID.           |
 | `receiver_id` | Filter settlements by receiver user ID.        |
 
+### Audit Logs
+
+- ``GET /groups/{group_id}/audit-logs``
+
 ## Running Tests
 
 Run the full test suite:
@@ -277,3 +287,4 @@ pytest
 - Expense splits are cascade-deleted when an expense is deleted
 - Balances are computed on demand
 - Settlements are not tied to a specific expense
+- Audit logs are append-only and record key group events such as expense, settlement, membership changes
