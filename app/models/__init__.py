@@ -5,3 +5,5 @@ from app.models.expense import Expense
 from app.models.expense_splits import ExpenseSplit
 from app.models.settlement import Settlement
 from app.models.audit_log import AuditLog
+from app.models.recurring_expense import RecurringExpense
+from app.models.recurring_expense_splits import RecurringExpenseSplit
