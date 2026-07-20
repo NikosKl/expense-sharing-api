@@ -1,14 +1,19 @@
 import uuid
+from typing import cast
 
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models import User, RecurringExpense, RecurringExpenseSplit
 from app.schemas.recurring_expense import RecurringExpenseCreateRequest, ExactRecurringExpenseCreateRequest, \
     EqualRecurringExpenseCreateRequest, PercentageRecurringExpenseCreateRequest
 from app.services.audit_log_service import create_audit_log
+from app.services.exceptions import GroupNotFound, PermissionDeniedError, RecurringExpenseNotFound
 from app.services.expense_service import validate_expense_memberships, calculate_equal_splits, calculate_exact_splits, \
     calculate_percentage_splits
+from app.services.group_member_service import get_group_member
+from app.services.group_service import get_group_by_raw_id
 
 
 def create_recurring_expense(db: Session, current_user: User, group_id: uuid.UUID, recurring_expense_data: RecurringExpenseCreateRequest) -> RecurringExpense:
@@ -78,6 +83,61 @@ def create_recurring_expense(db: Session, current_user: User, group_id: uuid.UUI
         db.commit()
         db.refresh(recurring_expense)
         return recurring_expense
+    except IntegrityError:
+        db.rollback()
+        raise
+
+def get_group_recurring_expenses(db: Session, current_user: User, group_id: uuid.UUID, is_active: bool | None = None) -> list[RecurringExpense]:
+    group = get_group_by_raw_id(db, group_id)
+    if not group:
+        raise GroupNotFound()
+    current_member = get_group_member(db, group_id, current_user.id)
+    if not current_member:
+        raise PermissionDeniedError()
+
+    stmt = (select(RecurringExpense).where(RecurringExpense.group_id == group.id))
+
+    if is_active is not None:
+        stmt = stmt.where(RecurringExpense.is_active == is_active)
+
+    stmt = stmt.options(selectinload(RecurringExpense.splits)).order_by(RecurringExpense.next_run_at.asc(), RecurringExpense.created_at.desc())
+
+    recurring_expenses = cast(list[RecurringExpense], db.scalars(stmt).all())
+    return recurring_expenses
+
+def get_recurring_expense_by_id(db: Session, current_user: User, recurring_expense_id: uuid.UUID) -> RecurringExpense:
+    stmt = select(RecurringExpense).where(RecurringExpense.id == recurring_expense_id).options(selectinload(RecurringExpense.splits))
+    recurring_expense = db.scalar(stmt)
+
+    if recurring_expense is None:
+        raise RecurringExpenseNotFound()
+    current_member = get_group_member(db, recurring_expense.group_id, current_user.id)
+    if current_member is None:
+        raise PermissionDeniedError()
+    return recurring_expense
+
+def cancel_recurring_expense(db: Session, current_user: User, recurring_expense_id: uuid.UUID) -> None:
+    recurring_expense = get_recurring_expense_by_id(db, current_user, recurring_expense_id)
+
+    if recurring_expense.created_by != current_user.id:
+        raise PermissionDeniedError()
+
+    try:
+        recurring_expense.is_active = False
+
+        create_audit_log(
+            db=db,
+            group_id=recurring_expense.group_id,
+            performed_by_id=current_user.id,
+            action='recurring_expense.canceled',
+            target_type='recurring_expense',
+            target_id=recurring_expense.id,
+            details={
+                'title': recurring_expense.title,
+                'frequency': recurring_expense.frequency
+            }
+        )
+        db.commit()
     except IntegrityError:
         db.rollback()
         raise
