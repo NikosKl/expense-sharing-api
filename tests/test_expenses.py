@@ -448,7 +448,7 @@ def test_list_expenses_response_includes_nested_splits(client):
     assert member['user']['id'] in returned_id
     assert owner['user']['id'] in returned_id
 
-def test_get__expense_by_id_success(client):
+def test_get_expense_by_id_success(client):
     context = create_authenticated_group_members(client)
 
     owner = context['owner']
