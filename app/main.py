@@ -16,6 +16,8 @@ from app.api.expenses import router as expenses_router
 from app.api.settlements import router as settlements_router
 from app.api.settlement_suggestions import router as settlement_suggestions_router
 from app.api.audit_logs import router as audit_logs_router
+from app.api.group_recurring_expenses import router as group_recurring_expenses_router
+from app.api.recurring_expenses import router as recurring_expenses_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -47,6 +49,8 @@ app.include_router(expenses_router)
 app.include_router(settlements_router)
 app.include_router(settlement_suggestions_router)
 app.include_router(audit_logs_router)
+app.include_router(group_recurring_expenses_router)
+app.include_router(recurring_expenses_router)
 
 @app.get("/")
 def read_root():
