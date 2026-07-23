@@ -37,6 +37,8 @@ Alternative documentation:
 - Settlement suggestions based on current group balances
 - Rate limiting for authentication endpoints
 - Group audit logs for expenses, settlements, and membership changes
+- Recurring expense templates
+- Create, list, and cancel recurring expenses
 
 ## Tech Stack
 
@@ -60,8 +62,10 @@ expense-sharing-api/
 │   │   ├── expenses.py
 │   │   ├── group_expenses.py
 │   │   ├── group_members.py
+│   │   ├── group_recurring_expenses.py
 │   │   ├── group_settlements.py
 │   │   ├── groups.py
+│   │   ├── recurring_expenses.py
 │   │   ├── settlement_suggestions.py
 │   │   └── settlements.py
 │   ├── core/
@@ -77,6 +81,8 @@ expense-sharing-api/
 │   │   ├── expense_splits.py
 │   │   ├── group.py
 │   │   ├── group_member.py
+│   │   ├── recurring_expense.py
+│   │   ├── recurring_expense_splits.py
 │   │   ├── settlement.py
 │   │   └── user.py
 │   ├── schemas/
@@ -86,6 +92,7 @@ expense-sharing-api/
 │   │   ├── expense.py
 │   │   ├── group.py
 │   │   ├── group_member.py
+│   │   ├── recurring_expense.py
 │   │   ├── settlement.py
 │   │   └── user.py
 │   ├── services/
@@ -97,6 +104,7 @@ expense-sharing-api/
 │   │   ├── group_member_service.py
 │   │   ├── group_service.py
 │   │   ├── helpers.py
+│   │   ├── recurring_expense_service.py
 │   │   ├── settlement_service.py
 │   │   ├── settlement_suggestion_service.py
 │   │   └── user_service.py
@@ -112,6 +120,7 @@ expense-sharing-api/
 │   ├── test_expenses.py
 │   ├── test_group_members.py
 │   ├── test_groups.py
+│   ├── test_recurring_expenses.py
 │   ├── test_settlement_suggestions.py
 │   └── test_settlements.py
 ├── .gitignore
@@ -265,6 +274,12 @@ Used with:
 
 - ``GET /groups/{group_id}/audit-logs``
 
+### Recurring Expenses
+
+- ``POST /groups/{group_id}/recurring-expenses``
+- ``GET /groups/{group_id}/recurring-expenses``
+- ``DELETE /recurring-expenses/{recurring_expense_id}``
+
 ## Running Tests
 
 Run the full test suite:
@@ -287,4 +302,6 @@ pytest
 - Expense splits are cascade-deleted when an expense is deleted
 - Balances are computed on demand
 - Settlements are not tied to a specific expense
-- Audit logs are append-only and record key group events such as expense, settlement, membership changes
+- Audit logs are append-only and record key group events such as expense, settlement, and membership changes
+- Recurring expenses are templates and do not automatically generate real expenses yet
+- Canceling a recurring expense sets ``is_active`` to false instead of deleting it
