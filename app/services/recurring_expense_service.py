@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import User, RecurringExpense, RecurringExpenseSplit
+from app.models import User, RecurringExpense, RecurringExpenseSplit, Expense, ExpenseSplit
 from app.schemas.recurring_expense import RecurringExpenseCreateRequest, ExactRecurringExpenseCreateRequest, \
     EqualRecurringExpenseCreateRequest, PercentageRecurringExpenseCreateRequest
 from app.services.audit_log_service import create_audit_log
@@ -153,3 +153,67 @@ def calculate_next_run_at(current_next_run_at: datetime, frequency: str) -> date
         return current_next_run_at + relativedelta(months=1)
     else:
         raise ValueError('Unsupported recurring expense frequency')
+
+
+def process_due_recurring_expenses(db: Session, now: datetime) -> int:
+    stmt = select(RecurringExpense).where(RecurringExpense.is_active.is_(True), RecurringExpense.next_run_at <= now).options(selectinload(RecurringExpense.splits))
+    due_recurring_expenses = db.scalars(stmt).all()
+
+    created_count = 0
+
+    try:
+        for recurring_expense in due_recurring_expenses:
+            old_next_run_at = recurring_expense.next_run_at
+
+            expense = Expense(
+                group_id=recurring_expense.group_id,
+                created_by=recurring_expense.created_by,
+                payer_id=recurring_expense.payer_id,
+                title=recurring_expense.title,
+                description=recurring_expense.description,
+                total_amount=recurring_expense.total_amount,
+                split_type=recurring_expense.split_type,
+                expense_date=old_next_run_at,
+            )
+
+            db.add(expense)
+            db.flush()
+
+            expense_split = [
+                ExpenseSplit(
+                    expense_id=expense.id,
+                    user_id=recurring_split.user_id,
+                    amount_owed=recurring_split.amount_owed,
+                )
+                for recurring_split in recurring_expense.splits
+            ]
+
+            db.add_all(expense_split)
+
+            created_count += 1
+
+            recurring_expense.next_run_at = calculate_next_run_at(recurring_expense.next_run_at, recurring_expense.frequency)
+
+            create_audit_log(
+                db=db,
+                group_id=expense.group_id,
+                performed_by_id=expense.created_by,
+                action='recurring_expense.processed',
+                target_type='recurring_expense',
+                target_id=recurring_expense.id,
+                details={
+                    'expense_id': str(expense.id),
+                    'title': expense.title,
+                    'total_amount': str(expense.total_amount),
+                    'split_type': expense.split_type,
+                    'old_next_run_at': datetime.isoformat(old_next_run_at),
+                    'new_next_run_at': datetime.isoformat(recurring_expense.next_run_at),
+                }
+            )
+        db.commit()
+
+        return created_count
+    except IntegrityError:
+        db.rollback()
+        raise
+
