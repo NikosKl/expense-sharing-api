@@ -1,6 +1,8 @@
+from datetime import datetime
 import uuid
 from typing import cast
 
+from dateutil.relativedelta import relativedelta
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
@@ -141,3 +143,13 @@ def cancel_recurring_expense(db: Session, current_user: User, recurring_expense_
     except IntegrityError:
         db.rollback()
         raise
+
+def calculate_next_run_at(current_next_run_at: datetime, frequency: str) -> datetime:
+    if frequency == 'daily':
+        return current_next_run_at + relativedelta(days=1)
+    elif frequency == 'weekly':
+        return current_next_run_at + relativedelta(weeks=1)
+    elif frequency == 'monthly':
+        return current_next_run_at + relativedelta(months=1)
+    else:
+        raise ValueError('Unsupported recurring expense frequency')

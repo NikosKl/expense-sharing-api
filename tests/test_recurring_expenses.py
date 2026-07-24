@@ -1,6 +1,10 @@
 import uuid
+from datetime import datetime
 from decimal import Decimal
 
+import pytest
+
+from app.services.recurring_expense_service import calculate_next_run_at
 from tests.helpers import create_authenticated_group_members, create_authenticated_user
 
 
@@ -398,3 +402,33 @@ def test_recurring_expense_cancel_invalid_id(client):
 
     response = client.delete(f'/recurring-expenses/{new_recurring_expense_id}', headers=owner['headers'])
     assert response.status_code == 404
+
+
+def test_calculate_next_run_at_daily():
+    current_next_run_at = datetime.fromisoformat('2026-08-21T15:30:00+03:00')
+    date = calculate_next_run_at(current_next_run_at, frequency='daily')
+    assert date == datetime.fromisoformat('2026-08-22T15:30:00+03:00')
+
+
+def test_calculate_next_run_at_weekly():
+    current_next_run_at = datetime.fromisoformat('2026-08-21T15:30:00+03:00')
+    date = calculate_next_run_at(current_next_run_at, frequency='weekly')
+    assert date == datetime.fromisoformat('2026-08-28T15:30:00+03:00')
+
+
+def test_calculate_next_run_at_monthly():
+    current_next_run_at = datetime.fromisoformat('2026-08-21T15:30:00+03:00')
+    date = calculate_next_run_at(current_next_run_at, frequency='monthly')
+    assert date == datetime.fromisoformat('2026-09-21T15:30:00+03:00')
+
+
+def test_calculate_next_run_at_monthly_handles_end_of_month():
+    current_next_run_at = datetime.fromisoformat('2026-01-31T15:30:00+03:00')
+    date = calculate_next_run_at(current_next_run_at, frequency='monthly')
+    assert date == datetime.fromisoformat('2026-02-28T15:30:00+03:00')
+
+
+def test_calculate_next_run_at_invalid_frequency():
+    current_next_run_at = datetime.fromisoformat('2026-08-21T15:30:00+03:00')
+    with pytest.raises(ValueError):
+        calculate_next_run_at(current_next_run_at, frequency='invalid')
