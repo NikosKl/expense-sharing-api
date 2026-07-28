@@ -3,8 +3,10 @@ from datetime import datetime
 from decimal import Decimal
 
 import pytest
+from sqlalchemy import select
 
-from app.services.recurring_expense_service import calculate_next_run_at
+from app.models import Expense, RecurringExpense
+from app.services.recurring_expense_service import calculate_next_run_at, process_due_recurring_expenses
 from tests.helpers import create_authenticated_group_members, create_authenticated_user
 
 
@@ -432,3 +434,117 @@ def test_calculate_next_run_at_invalid_frequency():
     current_next_run_at = datetime.fromisoformat('2026-08-21T15:30:00+03:00')
     with pytest.raises(ValueError):
         calculate_next_run_at(current_next_run_at, frequency='invalid')
+
+
+def test_process_due_recurring_expenses_returns_zero_when_none_due(client, db_session):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    recurring_expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'recurring expense',
+        'total_amount': 100,
+        'frequency': 'monthly',
+        'next_run_at': '2026-08-21T15:30:00+03:00',
+        'split_type': 'equal',
+        'participants': [
+            {'user_id': member['user']['id']},
+            {'user_id': owner['user']['id']},
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/recurring-expenses', json=recurring_expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+
+    now = datetime.fromisoformat('2026-08-01T15:30:00+03:00')
+    created_count = process_due_recurring_expenses(db_session, now)
+
+    assert created_count == 0
+
+
+def test_process_due_recurring_expenses_creates_expense_and_advances_next_run_at(client, db_session):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    recurring_expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'recurring expense',
+        'total_amount': 100,
+        'frequency': 'monthly',
+        'next_run_at': '2026-08-01T15:30:00+03:00',
+        'split_type': 'equal',
+        'participants': [
+            {'user_id': member['user']['id']},
+            {'user_id': owner['user']['id']},
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/recurring-expenses', json=recurring_expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+
+    now = datetime.fromisoformat('2026-08-01T15:30:00+03:00')
+    created_count = process_due_recurring_expenses(db_session, now)
+
+    assert created_count == 1
+
+    group_uuid = uuid.UUID(group_id)
+
+    stmt = select(Expense).where(Expense.title == 'recurring expense', Expense.group_id == group_uuid)
+    expense = db_session.scalar(stmt)
+
+    assert expense is not None
+    assert expense.expense_date == now
+
+    stmt = select(RecurringExpense).where(RecurringExpense.id == data['id'], RecurringExpense.group_id == group_uuid)
+    recurring_expense = db_session.scalar(stmt)
+
+    assert recurring_expense is not None
+    assert recurring_expense.next_run_at == datetime.fromisoformat('2026-09-01T15:30:00+03:00')
+
+
+def test_process_due_recurring_expenses_ignores_inactive_recurring_expenses(client, db_session):
+    context = create_authenticated_group_members(client)
+
+    owner = context['owner']
+    member = context['member']
+    group_id = context['group']['id']
+
+    recurring_expense_payload = {
+        'payer_id': owner['user']['id'],
+        'title': 'recurring expense',
+        'total_amount': 100,
+        'frequency': 'monthly',
+        'next_run_at': '2026-08-01T15:30:00+03:00',
+        'split_type': 'equal',
+        'participants': [
+            {'user_id': member['user']['id']},
+            {'user_id': owner['user']['id']},
+        ]
+    }
+
+    response = client.post(f'/groups/{group_id}/recurring-expenses', json=recurring_expense_payload, headers=owner['headers'])
+    assert response.status_code == 200
+    data = response.json()
+    recurring_expense_id = data['id']
+
+    response = client.delete(f'/recurring-expenses/{recurring_expense_id}', headers=owner['headers'])
+    assert response.status_code == 204
+
+    now = datetime.fromisoformat('2026-08-01T15:30:00+03:00')
+    created_count = process_due_recurring_expenses(db_session, now)
+
+    assert created_count == 0
+
+    group_uuid = uuid.UUID(group_id)
+
+    stmt = select(Expense).where(Expense.title == 'recurring expense', Expense.group_id == group_uuid)
+    expenses = db_session.scalars(stmt).all()
+
+    assert expenses == []
