@@ -1,13 +1,10 @@
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models import User
 from app.schemas.group import GroupResponse, GroupCreateRequest
-from app.schemas.group_member import GroupMemberCreateRequest, GroupMemberResponse
-from app.services.group_member_service import add_member_to_group, get_group_members, remove_group_member
-from app.services.exceptions import CannotRemoveSelfFromGroupError, GroupNotFound, PermissionDeniedError, UserNotFound, GroupMemberAlreadyExists
 from app.services.group_service import create_group, get_group_by_id, get_groups_for_user
 
 router = APIRouter(prefix="/groups", tags=["groups"])
