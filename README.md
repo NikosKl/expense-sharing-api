@@ -39,6 +39,8 @@ Alternative documentation:
 - Group audit logs for expenses, settlements, and membership changes
 - Recurring expense templates
 - Create, list, and cancel recurring expenses
+- Recurring expense processor job
+- Manual command for processing due recurring expenses
 
 ## Tech Stack
 
@@ -72,6 +74,8 @@ expense-sharing-api/
 │   │   ├── config.py
 │   │   ├── rate_limit.py
 │   │   └── security.py
+│   ├── jobs/
+│   │   └── process_recurring_expenses.py
 │   ├── db/
 │   │   ├── base.py
 │   │   └── session.py
@@ -280,6 +284,13 @@ Used with:
 - ``GET /groups/{group_id}/recurring-expenses``
 - ``DELETE /recurring-expenses/{recurring_expense_id}``
 
+#### Recurring Expenses Processor
+
+- Due recurring expenses can be processed manually with ``python -m app.jobs.process_recurring_expenses``
+- The command checks active recurring expenses where ``next_run_at <= now``
+- It creates real expenses, advances ``next_run_at``, and writes audit logs
+- No scheduler is currently wired. A scheduler/cron can run this command later
+
 ## Running Tests
 
 Run the full test suite:
@@ -296,6 +307,14 @@ pytest
 - Settlement amount cannot exceed the allowed outstanding balance
 - Settlement suggestions are read-only previews that show who should pay whom based on current balances. They do not create settlement records.
 
+## Recurring Expenses Notes
+
+- Recurring expenses are templates
+- They do not affect balances directly
+- When processed, they create real expenses with normal expense splits
+- The generated expenses then affect balances like any other expense
+- Canceling a recurring expense sets ``is_active`` to false
+
 ## Current Notes
 
 - ``equal``, ``exact``, ``percentage`` splits are supported
@@ -303,5 +322,3 @@ pytest
 - Balances are computed on demand
 - Settlements are not tied to a specific expense
 - Audit logs are append-only and record key group events such as expense, settlement, and membership changes
-- Recurring expenses are templates and do not automatically generate real expenses yet
-- Canceling a recurring expense sets ``is_active`` to false instead of deleting it
