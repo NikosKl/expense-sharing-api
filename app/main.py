@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from slowapi.errors import RateLimitExceeded
@@ -18,13 +19,21 @@ from app.api.settlement_suggestions import router as settlement_suggestions_rout
 from app.api.audit_logs import router as audit_logs_router
 from app.api.group_recurring_expenses import router as group_recurring_expenses_router
 from app.api.recurring_expenses import router as recurring_expenses_router
+from app.core.logging import configure_logging
+
+configure_logging()
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db = DBSession()
     try:
         db.execute(text('SELECT 1'))
-        print('Database Connection Successful')
+        logger.info('Database connection successful')
+    except Exception:
+        logger.exception('Database connection failed')
+        raise
     finally:
         db.close()
     yield
