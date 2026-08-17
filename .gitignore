@@ -5,3 +5,4 @@ __pycache__/
 *.db
 .env
 PLAN.md
+.env.docker
