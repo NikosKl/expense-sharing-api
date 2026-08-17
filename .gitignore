@@ -6,3 +6,4 @@ __pycache__/
 .env
 PLAN.md
 .env.docker
+.env.compose
