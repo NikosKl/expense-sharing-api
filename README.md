@@ -175,6 +175,45 @@ Interactive docs:
 ```bash
 http://127.0.0.1:8000/docs
 ```
+### Running with Docker
+
+- Build Image:
+
+```bash
+docker build -t expense-sharing-api .
+```
+
+- Run single container with an env file:
+
+```bash
+docker run --env-file .env.docker -p 8000:8000 expense-sharing-api
+```
+
+- Run full local stack with Compose:
+
+```bash
+docker compose --env-file .env.compose up --build
+```
+
+- Run migrations inside the API container:
+
+```bash
+docker compose --env-file .env.compose exec api alembic upgrade head
+```
+
+- Stop containers:
+
+```bash
+docker compose --env-file .env.compose down
+```
+
+### Docker Notes
+
+- `.env.docker` is for single-container Docker runs
+- `.env.compose` is for Docker Compose
+- Compose uses a local Postgres container and a named volume
+- `.env.docker` and `.env.compose` are ignored and should not be commited
+- After `docker compose up`, migrations should be run from a second terminal while the containers are running
 
 ## Authentication
 This API uses OAuth2 password flow with bearer token authentication.
