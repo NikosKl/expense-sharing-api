@@ -177,6 +177,15 @@ http://127.0.0.1:8000/docs
 ```
 ### Running with Docker
 
+- Create Docker environment files:
+
+```bash
+cp .env.docker.example .env.docker
+cp .env.compose.example .env.compose
+```
+
+Update the copied files with your local values before running Docker commands.
+
 - Build Image:
 
 ```bash
@@ -212,7 +221,7 @@ docker compose --env-file .env.compose down
 - `.env.docker` is for single-container Docker runs
 - `.env.compose` is for Docker Compose
 - Compose uses a local Postgres container and a named volume
-- `.env.docker` and `.env.compose` are ignored and should not be commited
+- `.env.docker` and `.env.compose` are ignored and should not be committed
 - After `docker compose up`, migrations should be run from a second terminal while the containers are running
 
 ## Authentication
