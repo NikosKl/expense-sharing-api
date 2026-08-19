@@ -137,23 +137,31 @@ expense-sharing-api/
 
 ## Setup
 
-1. Clone the repository
-```
+Clone the repository
+```bash
 git clone https://github.com/NikosKl/expense-sharing-api.git
 cd expense-sharing-api
 ```
-2. Create and activate a virtual environment
+
+Choose one of the following ways to run the app:
+
+- Local Development
+- Docker Compose
+
+### 1. Local Development
+
+#### Create and activate a virtual environment
 ```bash
 python -m venv venv
 
 source venv/bin/activate # MacOS / Linux
 venv\Scripts\activate # Windows
 ```
-3. Install Dependencies
+#### Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
-### Environment Variables
+#### Environment Variables
 Create a `.env` file in the project root.
 
 ```bash
@@ -161,12 +169,12 @@ cp .env.example .env
 ```
 Copy and update the values to match your configuration. Both ``DATABASE_URL`` and ``TEST_DATABASE_URL`` should point to existing PostgreSQL databases.
 
-### Database migrations
+#### Database migrations
 To apply the existing migrations and create the database schema:
 ```bash
 alembic upgrade head
 ```
-### Running the App
+#### Running the App
 Make sure PostgreSQL is running before ``alembic upgrade head`` / ``fastapi dev``
 ```bash
 fastapi dev app/main.py
@@ -175,53 +183,40 @@ Interactive docs:
 ```bash
 http://127.0.0.1:8000/docs
 ```
-### Running with Docker
+### 2. Docker Compose
 
-- Create Docker environment files:
+#### Create the Docker Compose environment file:
 
 ```bash
-cp .env.docker.example .env.docker
 cp .env.compose.example .env.compose
 ```
 
-Update the copied files with your local values before running Docker commands.
+Update the copied file with your local values before running Docker Compose.
 
-- Build Image:
-
-```bash
-docker build -t expense-sharing-api .
-```
-
-- Run single container with an env file:
-
-```bash
-docker run --env-file .env.docker -p 8000:8000 expense-sharing-api
-```
-
-- Run full local stack with Compose:
+#### Run full local stack with Compose:
 
 ```bash
 docker compose --env-file .env.compose up --build
 ```
 
-- Run migrations inside the API container:
+#### Run migrations inside the API container:
 
 ```bash
 docker compose --env-file .env.compose exec api alembic upgrade head
 ```
 
-- Stop containers:
+#### Stop containers:
 
 ```bash
 docker compose --env-file .env.compose down
 ```
 
-### Docker Notes
+#### Docker Notes
 
-- `.env.docker` is for single-container Docker runs
-- `.env.compose` is for Docker Compose
-- Compose uses a local Postgres container and a named volume
-- `.env.docker` and `.env.compose` are ignored and should not be committed
+- `.env.compose` is used for Docker Compose
+- Compose runs both the API and PostgreSQL containers
+- PostgreSQL data is persisted using a named Docker volume
+- `.env.compose` is ignored and should not be committed
 - After `docker compose up`, migrations should be run from a second terminal while the containers are running
 
 ## Authentication
