@@ -12,5 +12,4 @@ venv/
 *.pyo
 *.db
 PLAN.md
-.env.docker
 .env.compose
