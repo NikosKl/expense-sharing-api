@@ -30,3 +30,5 @@ class SettlementNotFound(Exception):
     pass
 class InvalidSettlementParticipantError(Exception):
     pass
+class RecurringExpenseNotFound(Exception):
+    pass

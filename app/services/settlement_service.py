@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.models import User, Settlement
 from app.schemas.settlement import SettlementCreateRequest, SettlementUpdateRequest
+from app.services.audit_log_service import create_audit_log
 from app.services.exceptions import GroupNotFound, PermissionDeniedError, InvalidPayerError, InvalidReceiverError, \
     InvalidSettlementAmountError, SettlementNotFound, InvalidSettlementParticipantError
 from app.services.group_member_service import get_group_member
@@ -45,6 +46,22 @@ def create_settlement(db: Session, current_user: User, group_id: uuid.UUID, sett
 
     try:
         db.add(settlement)
+        db.flush()
+
+        create_audit_log(
+            db=db,
+            group_id=group_id,
+            performed_by_id=current_user.id,
+            action='settlement.created',
+            target_type='settlement',
+            target_id=settlement.id,
+            details={
+                'amount': str(settlement_data.amount),
+                'payer_id': str(settlement_data.payer_id),
+                'receiver_id': str(settlement_data.receiver_id),
+            }
+        )
+
         db.commit()
         db.refresh(settlement)
         return settlement
@@ -116,6 +133,20 @@ def delete_settlement(db: Session, current_user: User, settlement_id: uuid.UUID)
         raise PermissionDeniedError()
 
     try:
+        create_audit_log(
+            db=db,
+            group_id=settlement.group_id,
+            performed_by_id=current_user.id,
+            action='settlement.deleted',
+            target_type='settlement',
+            target_id=settlement.id,
+            details={
+                'amount': str(settlement.amount),
+                'payer_id': str(settlement.payer_id),
+                'receiver_id': str(settlement.receiver_id),
+            }
+        )
+
         db.delete(settlement)
         db.commit()
     except IntegrityError:
@@ -154,11 +185,23 @@ def update_settlement(db: Session, current_user: User, settlement_id: uuid.UUID,
         setattr(settlement, field, value)
 
     try:
+        details = {
+            'updated_fields': list(settlement_data.model_dump(exclude_unset=True).keys())
+        }
+
+        create_audit_log(
+            db=db,
+            group_id=settlement.group_id,
+            performed_by_id=current_user.id,
+            action='settlement.updated',
+            target_type='settlement',
+            target_id=settlement.id,
+            details=details
+        )
+
         db.commit()
         db.refresh(settlement)
         return settlement
     except IntegrityError:
         db.rollback()
         raise
-
-

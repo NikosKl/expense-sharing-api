@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.models import User, Expense, ExpenseSplit
 from app.schemas.expense import ExpenseCreateRequest, ExactExpenseCreateRequest, EqualExpenseCreateRequest, \
     PercentageExpenseCreateRequest, ExpenseUpdateRequest
+from app.services.audit_log_service import create_audit_log
 from app.services.exceptions import InvalidPayerError, InvalidParticipantsError, GroupNotFound, PermissionDeniedError, \
     InvalidExpenseSplitError, ExpenseNotFound
 from app.services.group_member_service import get_group_member
@@ -135,7 +136,23 @@ def create_expense(db: Session, current_user: User, group_id: uuid.UUID, expense
             )
             for participant_id, amount in amount_split
         ]
+
         db.add_all(expense_split)
+
+        create_audit_log(
+            db=db,
+            group_id=group_id,
+            performed_by_id=current_user.id,
+            action='expense.created',
+            target_type='expense',
+            target_id=group_expense.id,
+            details={
+                'title': group_expense.title,
+                'total_amount': str(group_expense.total_amount),
+                'split_type': group_expense.split_type,
+            }
+        )
+
         db.commit()
         db.refresh(group_expense)
         return group_expense
@@ -246,6 +263,22 @@ def update_expense(db: Session, current_user: User, expense_id: uuid.UUID, expen
                 for participant_id, amount in amount_split
             ]
             db.add_all(new_splits)
+
+        update_data = expense_data.model_dump(exclude_unset=True)
+        details = {
+            'updated_fields': list(update_data.keys()),
+            'participants_replaced': expense_data.participants is not None
+        }
+
+        create_audit_log(
+            db=db,
+            group_id=expense.group_id,
+            performed_by_id=current_user.id,
+            action='expense.updated',
+            target_type='expense',
+            target_id=expense.id,
+            details=details
+        )
         db.commit()
         db.refresh(expense)
 
@@ -267,6 +300,20 @@ def delete_expense(db: Session, current_user: User, expense_id: uuid.UUID) -> No
         raise PermissionDeniedError()
 
     try:
+        create_audit_log(
+            db=db,
+            group_id=expense.group_id,
+            performed_by_id=current_user.id,
+            action='expense.deleted',
+            target_type='expense',
+            target_id=expense.id,
+            details={
+                'title': expense.title,
+                'total_amount': str(expense.total_amount),
+                'split_type': expense.split_type,
+            }
+        )
+
         db.delete(expense)
         db.commit()
     except IntegrityError:

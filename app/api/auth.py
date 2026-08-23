@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import TypeAdapter, EmailStr, ValidationError
 from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
+from app.core.config import settings
+from app.core.rate_limit import limiter
 from app.db.session import get_db
 from app.models import User
 from app.schemas.auth import RegisterRequest, TokenResponse
@@ -13,7 +15,8 @@ from app.services.exceptions import UserAlreadyExistsError, InactiveUserError, I
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/register", response_model=UserResponse)
-def register(user: RegisterRequest, db: Session = Depends(get_db)):
+@limiter.limit(settings.auth_register_rate_limit)
+def register(request: Request, user: RegisterRequest, db: Session = Depends(get_db)):
     try:
         created_user = register_user(
             db,
@@ -29,7 +32,8 @@ def register(user: RegisterRequest, db: Session = Depends(get_db)):
              response_model=TokenResponse,
              description="Authenticate a user and return an access token.\n\n"
         "Note: in the OAuth2 form, the `username` field must contain the user's email address.")
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+@limiter.limit(settings.auth_login_rate_limit)
+def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     try:
         email = TypeAdapter(EmailStr).validate_python(form_data.username)
         authenticated_user = authenticate_user(

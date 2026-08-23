@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     jwt_algorithm: str = Field(default='HS256', alias='JWT_ALGORITHM')
     access_token_expire_minutes: int = Field(default=30, alias='ACCESS_TOKEN_EXPIRE_MINUTES', gt=0)
 
+    rate_limit_enabled: bool = Field(default=True, alias='RATE_LIMIT_ENABLED')
+    auth_login_rate_limit: str = Field(default='5/minute', alias='AUTH_LOGIN_RATE_LIMIT')
+    auth_register_rate_limit: str = Field(default='3/minute', alias='AUTH_REGISTER_RATE_LIMIT')
+
     model_config = SettingsConfigDict(
         env_file='.env',
         env_file_encoding='utf-8',
